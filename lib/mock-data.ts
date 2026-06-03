@@ -19,6 +19,8 @@ export const mockReservations: Reservation[] = [
     endDate: formatISO(addDays(today, -19), { representation: "date" }),
     status: "approved",
     reviewedByUserId: "user-2",
+    reviewedByName: "Jordan Lee",
+    reviewedAt: formatISO(addDays(today, -28)),
     notes: "Family stay",
     createdAt: formatISO(addDays(today, -30))
   },
@@ -41,6 +43,20 @@ export const mockReservations: Reservation[] = [
     status: "pending",
     notes: "Quick weekend",
     createdAt: formatISO(addDays(today, -2))
+  },
+  {
+    id: "res-4",
+    userId: "user-4",
+    userName: "Jamie Stone",
+    startDate: formatISO(addDays(today, -12), { representation: "date" }),
+    endDate: formatISO(addDays(today, -10), { representation: "date" }),
+    status: "declined",
+    reviewedByUserId: "user-2",
+    reviewedByName: "Jordan Lee",
+    reviewedAt: formatISO(addDays(today, -11)),
+    declineReason: "Maintenance scheduled during those dates.",
+    notes: "Short getaway",
+    createdAt: formatISO(addDays(today, -13))
   }
 ];
 

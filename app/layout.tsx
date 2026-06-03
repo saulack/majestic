@@ -1,5 +1,17 @@
 import type { Metadata } from "next";
+import { Cinzel, Inter } from "next/font/google";
 import "./globals.css";
+
+const bodyFont = Inter({
+  subsets: ["latin"],
+  variable: "--font-body"
+});
+
+const displayFont = Cinzel({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["500", "600", "700"]
+});
 
 export const metadata: Metadata = {
   title: "Majestic Bookings",
@@ -9,7 +21,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className={`${bodyFont.variable} ${displayFont.variable}`}>{children}</body>
     </html>
   );
 }

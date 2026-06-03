@@ -18,21 +18,12 @@ export function canEditOwnReservation(user: UserProfile, reservation: Reservatio
 
 export function canModerateReservation(
   actingUser: UserProfile,
-  reservationOwner: UserProfile,
+  _reservationOwner: UserProfile,
   reservation: Reservation
 ): boolean {
+  // Admins and superadmins can moderate any reservation except their own.
   if (actingUser.id === reservation.userId) {
     return false;
   }
-
-  if (isSuperadmin(actingUser)) {
-    return true;
-  }
-
-  if (!isAdmin(actingUser)) {
-    return false;
-  }
-
-  // Admins can moderate regular users only, never other admins/superadmins.
-  return reservationOwner.role === "user";
+  return isAdminLike(actingUser);
 }

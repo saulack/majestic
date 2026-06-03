@@ -19,6 +19,9 @@ export type Reservation = {
   endDate: string;
   status: ReservationStatus;
   reviewedByUserId?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  declineReason?: string;
   notes?: string;
   createdAt: string;
 };
