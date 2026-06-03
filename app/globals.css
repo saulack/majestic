@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  --card: 255 255 255;
+  --card-strong: 245 241 235;
+  --text-main: 15 23 42;
+  --text-soft: 71 85 105;
+  --accent: 180 83 9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Fraunces", "ui-serif", Georgia, Cambria, "Times New Roman", Times, serif;
+  color: rgb(var(--text-main));
+}
+
+h1,
+h2,
+h3,
+h4 {
+  letter-spacing: -0.02em;
+}
+
+.card {
+  background: rgb(var(--card));
+  border: 1px solid rgb(226 232 240);
+  border-radius: 1rem;
+  box-shadow: 0 10px 40px rgb(15 23 42 / 0.08);
+}
+
+.card-strong {
+  background: rgb(var(--card-strong));
+}

@@ -1,0 +1,21 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Dev Server (Node20 via npx)",
+			"type": "shell",
+			"command": "npx",
+			"args": [
+				"-p",
+				"node@20",
+				"-p",
+				"npm@10",
+				"npm",
+				"run",
+				"dev"
+			],
+			"isBackground": true,
+			"group": "build"
+		}
+	]
+}
