@@ -9,6 +9,7 @@ export async function createReservation(params: {
   startDate: string;
   endDate: string;
   notes: string;
+  approvalEnabled: boolean;
 }): Promise<ActionResult> {
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
@@ -25,7 +26,7 @@ export async function createReservation(params: {
     return { error: "You must be signed in to make a reservation." };
   }
 
-  const { startDate, endDate, notes } = params;
+  const { startDate, endDate, notes, approvalEnabled } = params;
 
   if (!startDate || !endDate) {
     return { error: "Start and end dates are required." };
@@ -52,7 +53,7 @@ export async function createReservation(params: {
     start_date: startDate,
     end_date: endDate,
     notes: notes.trim() || null,
-    status: "pending"
+    status: approvalEnabled ? "pending" : "approved"
   });
 
   if (insertError) {

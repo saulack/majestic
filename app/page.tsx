@@ -1,8 +1,19 @@
 import Link from "next/link";
+import { compareAsc, format, parseISO } from "date-fns";
 import { AppShell } from "@/components/app-shell";
 import { currentUser, mockReservations } from "@/lib/mock-data";
+import { getNumberAppSetting } from "@/lib/app-settings";
+import { HOMEPAGE_RESERVATIONS_COUNT_KEY } from "@/lib/feature-flags";
 
-export default function HomePage() {
+const DEFAULT_HOME_RESERVATION_COUNT = 5;
+
+export default async function HomePage() {
+  const upcomingReservationCount = await getNumberAppSetting(HOMEPAGE_RESERVATIONS_COUNT_KEY, DEFAULT_HOME_RESERVATION_COUNT);
+  const upcomingReservations = [...mockReservations]
+    .filter((reservation) => compareAsc(parseISO(reservation.startDate), new Date()) >= 0)
+    .sort((left, right) => compareAsc(parseISO(left.startDate), parseISO(right.startDate)))
+    .slice(0, upcomingReservationCount);
+
   return (
     <AppShell>
       <section className="grid gap-5 sm:gap-6 lg:grid-cols-[1.4fr_1fr]">
@@ -28,6 +39,41 @@ export default function HomePage() {
             <Action href="/reservations" title="Manage requests" subtitle="Review approvals, denials, and notes" />
             <Action href="/stats" title="View personal stats" subtitle="Track your own stays and nights" />
           </div>
+        </div>
+      </section>
+
+      <section className="card mt-5 p-5 sm:mt-6 sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.28em] text-amber-700">Upcoming reservations</p>
+            <h3 className="mt-2 text-xl sm:text-2xl">Next {upcomingReservationCount} reservations</h3>
+          </div>
+          <p className="text-sm text-slate-500">Showing the next reservations configured by admin.</p>
+        </div>
+
+        <div className="mt-5 grid gap-3">
+          {upcomingReservations.length > 0 ? (
+            upcomingReservations.map((reservation) => (
+              <article key={reservation.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3.5 sm:px-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-base font-semibold text-slate-900">{reservation.userName}</h4>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {format(parseISO(reservation.startDate), "MMM d, yyyy")} to {format(parseISO(reservation.endDate), "MMM d, yyyy")}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
+                    {reservation.status}
+                  </span>
+                </div>
+                {reservation.notes ? <p className="mt-2 text-sm text-slate-500">{reservation.notes}</p> : null}
+              </article>
+            ))
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">
+              No upcoming reservations found.
+            </div>
+          )}
         </div>
       </section>
     </AppShell>

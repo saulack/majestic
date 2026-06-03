@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell";
+import { PasswordManager } from "@/app/account/password-manager";
 import { currentUser, mockPreferences } from "@/lib/mock-data";
 
 export default function AccountPage() {
@@ -48,12 +49,8 @@ export default function AccountPage() {
               </button>
             </form>
           </div>
-        </div>
 
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-500/45 backdrop-blur-[1px]">
-          <p className="rounded-xl bg-white/90 px-6 py-3 text-2xl font-black tracking-wide text-slate-900">
-            UNDER CONSTRUCTION
-          </p>
+          <PasswordManager />
         </div>
       </section>
     </AppShell>

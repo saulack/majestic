@@ -1,5 +1,8 @@
 import { AppShell } from "@/components/app-shell";
-import { Users, Wifi, BookOpen, Phone } from "lucide-react";
+import { BookOpen } from "lucide-react";
+import { ContactsManager } from "@/app/info/contacts-manager";
+import { AccessCodesManager } from "@/app/info/access-codes-manager";
+import { EmergencyContactsManager } from "@/app/info/emergency-contacts-manager";
 
 export default function InfoPage() {
   return (
@@ -10,33 +13,18 @@ export default function InfoPage() {
           Everything the family needs for the shared apartment: contacts, access details, and practical info.
         </p>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <InfoCard
-            icon={<Users className="h-5 w-5 text-amber-700" />}
-            iconBg="bg-amber-100"
-            title="Contacts & Directory"
-            description="Family members, assigned roles, and contact information will be listed here."
-          />
+        <div className="mt-8 grid gap-6 xl:grid-cols-2">
+          <ContactsManager />
 
-          <InfoCard
-            icon={<Wifi className="h-5 w-5 text-amber-700" />}
-            iconBg="bg-amber-100"
-            title="Wi-Fi & Access Codes"
-            description="Network names, Wi-Fi passwords, door codes, and lock combinations will be listed here."
-          />
+          <AccessCodesManager />
+
+          <EmergencyContactsManager />
 
           <InfoCard
             icon={<BookOpen className="h-5 w-5 text-amber-700" />}
             iconBg="bg-amber-100"
             title="House Rules & Guidelines"
             description="Rules, check-in / check-out procedures, and any house guidelines will be listed here."
-          />
-
-          <InfoCard
-            icon={<Phone className="h-5 w-5 text-amber-700" />}
-            iconBg="bg-amber-100"
-            title="Emergency Contacts"
-            description="Local emergency numbers, building super, and urgent repair contacts will be listed here."
           />
         </div>
       </section>

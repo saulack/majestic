@@ -8,14 +8,23 @@ type ApiResult = {
   message?: string;
   error?: string;
   mode?: "mock" | "live";
+  enabled?: boolean;
 };
 
-export function AdminConsole() {
+export function AdminConsole({
+  initialApprovalsEnabled,
+  initialHomepageReservationCount
+}: {
+  initialApprovalsEnabled: boolean;
+  initialHomepageReservationCount: number;
+}) {
   const [result, setResult] = useState<ApiResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [approvalsEnabled, setApprovalsEnabled] = useState(initialApprovalsEnabled);
+  const [homepageReservationCount, setHomepageReservationCount] = useState(initialHomepageReservationCount);
   const canManage = useMemo(() => isSuperadmin(currentUser), []);
 
-  async function postJson(path: string, body: Record<string, string>) {
+  async function postJson(path: string, body: Record<string, string | boolean | number>) {
     setLoading(true);
     setResult(null);
 
@@ -28,8 +37,11 @@ export function AdminConsole() {
 
       const data = (await response.json()) as ApiResult;
       setResult(data);
+      return data;
     } catch {
-      setResult({ error: "Request failed." });
+      const failure = { error: "Request failed." };
+      setResult(failure);
+      return failure;
     } finally {
       setLoading(false);
     }
@@ -46,6 +58,71 @@ export function AdminConsole() {
 
   return (
     <section className="grid gap-5 sm:gap-6 lg:grid-cols-2">
+      <div className="card p-5 sm:p-6 lg:col-span-2">
+        <h2 className="text-xl sm:text-2xl">Reservation Approvals</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Keep the approval workflow ready, but turn it on only when you want to start using it.
+        </p>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div>
+            <p className="text-sm font-medium text-slate-800">
+              {approvalsEnabled ? "Approvals are active" : "Approvals are paused"}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              When paused, reservations book directly. When active, moderation buttons reappear.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              const next = !approvalsEnabled;
+              setApprovalsEnabled(next);
+              const response = await postJson("/api/admin/reservation-approvals", { enabled: next });
+              if (response?.error) {
+                setApprovalsEnabled(!next);
+              }
+            }}
+            className={[
+              "rounded-lg px-4 py-2 text-white",
+              approvalsEnabled ? "bg-[#6a3d33]" : "bg-amber-700"
+            ].join(" ")}
+          >
+            {approvalsEnabled ? "Disable approvals" : "Enable approvals"}
+          </button>
+        </div>
+      </div>
+
+      <div className="card p-5 sm:p-6 lg:col-span-2">
+        <h2 className="text-xl sm:text-2xl">Homepage Reservations</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Choose how many upcoming reservations appear on the homepage.
+        </p>
+
+        <form
+          className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void postJson("/api/admin/home-reservations-count", { count: homepageReservationCount });
+          }}
+        >
+          <label className="grid gap-1.5 text-sm font-medium">
+            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Reservations shown</span>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={homepageReservationCount}
+              onChange={(event) => setHomepageReservationCount(Number(event.target.value))}
+              className="w-28 rounded-lg border border-slate-300 px-3 py-2"
+            />
+          </label>
+          <button disabled={loading} type="submit" className="rounded-lg bg-amber-700 px-4 py-2 text-white">
+            Save count
+          </button>
+        </form>
+      </div>
+
       <div className="card p-5 sm:p-6">
         <h2 className="text-xl sm:text-2xl">Create Account</h2>
         <p className="mt-2 text-sm text-slate-600">One account per email is enforced by Supabase Auth.</p>

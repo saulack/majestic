@@ -2,6 +2,7 @@ import { AppShell } from "@/components/app-shell";
 import { MonthlyReservationsCalendar } from "@/components/monthly-reservations-calendar";
 import { mockReservations, mockUsers } from "@/lib/mock-data";
 import { buildHolidayMap } from "@/lib/holidays";
+import { getReservationApprovalsEnabled } from "@/lib/feature-flags";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { Reservation, ReservationStatus } from "@/lib/types";
 
@@ -47,9 +48,10 @@ async function fetchReservations(): Promise<Reservation[]> {
 
 export default async function ReservationsPage() {
   const year = new Date().getFullYear();
-  const [reservations, holidayMap] = await Promise.all([
+  const [reservations, holidayMap, approvalsEnabled] = await Promise.all([
     fetchReservations(),
-    Promise.resolve(buildHolidayMap([year - 1, year, year + 1]))
+    Promise.resolve(buildHolidayMap([year - 1, year, year + 1])),
+    getReservationApprovalsEnabled()
   ]);
 
   return (
@@ -58,6 +60,7 @@ export default async function ReservationsPage() {
         reservations={reservations}
         holidayMap={holidayMap}
         users={mockUsers}
+        approvalsEnabled={approvalsEnabled}
       />
     </AppShell>
   );
