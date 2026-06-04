@@ -17,7 +17,7 @@ export async function GET() {
 
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
-    return NextResponse.json({ mode: "mock", accessCodes: [] });
+    return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
   const { data, error } = await supabase
@@ -50,13 +50,7 @@ export async function POST(request: Request) {
 
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
-    return NextResponse.json(
-      {
-        mode: "mock",
-        accessCode: { id: crypto.randomUUID(), title, passcode, location, notes }
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
   const { data, error } = await supabase

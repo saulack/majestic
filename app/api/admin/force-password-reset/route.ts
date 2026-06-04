@@ -21,7 +21,7 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   if (!admin) {
-    return NextResponse.json({ mode: "mock", message: `Mock password reset prepared for ${userId}.` });
+    return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
   const { error } = await admin

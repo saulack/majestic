@@ -4,8 +4,7 @@ export async function requireAuthenticated(): Promise<{ ok: true; userId: string
   const supabase = await createServerSupabaseClient();
 
   if (!supabase) {
-    // Local mock mode when Supabase env is not configured.
-    return { ok: true, userId: "mock-user" };
+    return { ok: false, message: "Supabase is not configured on the server." };
   }
 
   const {
@@ -24,8 +23,7 @@ export async function requireSuperadmin(): Promise<{ ok: true; userId: string } 
   const supabase = await createServerSupabaseClient();
 
   if (!supabase) {
-    // Local mock mode when Supabase env is not configured.
-    return { ok: true, userId: "mock-superadmin" };
+    return { ok: false, message: "Supabase is not configured on the server." };
   }
 
   const {

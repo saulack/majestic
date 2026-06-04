@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   const supabase = await createServerSupabaseClient();
 
   if (!supabase) {
-    return NextResponse.json({ mode: "mock", message: "Profile saved locally in mock mode." });
+    return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
   const {

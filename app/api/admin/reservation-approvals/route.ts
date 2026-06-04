@@ -14,7 +14,7 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   if (!admin) {
-    return NextResponse.json({ mode: "mock", enabled, message: `Mock reservation approvals set to ${enabled ? "on" : "off"}.` });
+    return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
   const { error } = await admin.from("app_settings").upsert({

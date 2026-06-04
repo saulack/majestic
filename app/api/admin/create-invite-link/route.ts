@@ -15,11 +15,7 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   if (!admin) {
-    return NextResponse.json({
-      mode: "mock",
-      inviteUrl: `${appUrl}/signup?invite_token=${token}`,
-      message: "Mock invite link generated."
-    });
+    return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
   const { error } = await admin.from("signup_invites").insert({

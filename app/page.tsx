@@ -3,10 +3,11 @@ import { compareAsc, format, parseISO } from "date-fns";
 import { AppShell } from "@/components/app-shell";
 import { currentUser, mockReservations } from "@/lib/mock-data";
 import { getNumberAppSetting } from "@/lib/app-settings";
-import { HOMEPAGE_RESERVATIONS_COUNT_KEY } from "@/lib/feature-flags";
+import { getReservationApprovalsEnabled, HOMEPAGE_RESERVATIONS_COUNT_KEY } from "@/lib/feature-flags";
 import { cookies } from "next/headers";
 import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
 import { isAdminLike } from "@/lib/rbac";
+import type { Reservation } from "@/lib/types";
 
 const DEFAULT_HOME_RESERVATION_COUNT = 5;
 
@@ -16,15 +17,30 @@ export default async function HomePage() {
   const actingUser = getEffectiveUser(currentUser, previewRole);
   const adminLike = isAdminLike(actingUser);
   const upcomingReservationCount = await getNumberAppSetting(HOMEPAGE_RESERVATIONS_COUNT_KEY, DEFAULT_HOME_RESERVATION_COUNT);
-  const upcomingReservations = [...mockReservations]
+  const approvalsEnabled = await getReservationApprovalsEnabled();
+  const normalizedReservations: Reservation[] = approvalsEnabled
+    ? mockReservations
+    : mockReservations.map((reservation) =>
+        reservation.status === "pending"
+          ? {
+              ...reservation,
+              status: "approved" as const
+            }
+          : reservation
+      );
+
+  const upcomingReservations = [...normalizedReservations]
     .filter((reservation) => compareAsc(parseISO(reservation.startDate), new Date()) >= 0)
     .sort((left, right) => compareAsc(parseISO(left.startDate), parseISO(right.startDate)))
     .slice(0, upcomingReservationCount);
-  const myReservations = mockReservations.filter((reservation) => reservation.userId === actingUser.id);
+  const myReservations = normalizedReservations.filter((reservation) => reservation.userId === actingUser.id);
   const myNextStay = myReservations
     .filter((reservation) => compareAsc(parseISO(reservation.startDate), new Date()) >= 0)
     .sort((left, right) => compareAsc(parseISO(left.startDate), parseISO(right.startDate)))[0];
-  const pendingRequests = mockReservations.filter((reservation) => reservation.status === "pending").length;
+  const requestMetricLabel = approvalsEnabled ? "Pending requests" : "Reserved";
+  const requestMetricValue = approvalsEnabled
+    ? normalizedReservations.filter((reservation) => reservation.status === "pending").length
+    : normalizedReservations.filter((reservation) => reservation.status === "approved").length;
 
   return (
     <AppShell>
@@ -41,7 +57,7 @@ export default async function HomePage() {
           </div>
           <div className="grid gap-3 p-5 sm:grid-cols-3 sm:gap-4 sm:p-6">
             <Metric label={adminLike ? "Visible reservations" : "My reservations"} value={String(adminLike ? mockReservations.length : myReservations.length)} />
-            <Metric label={adminLike ? "Pending requests" : "Your next stay"} value={adminLike ? String(pendingRequests) : myNextStay?.startDate ?? "-"} />
+            <Metric label={adminLike ? requestMetricLabel : "Your next stay"} value={adminLike ? String(requestMetricValue) : myNextStay?.startDate ?? "-"} />
             <Metric label={adminLike ? "Current role" : "Notification channels"} value={adminLike ? actingUser.role : "Email, SMS, WhatsApp"} />
           </div>
         </div>
@@ -60,7 +76,7 @@ export default async function HomePage() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-[0.28em] text-amber-700">Upcoming reservations</p>
-            <h3 className="mt-2 text-xl sm:text-2xl">nex {upcomingReservationCount} reservations</h3>
+            <h3 className="mt-2 text-xl sm:text-2xl">next {upcomingReservationCount} reservations</h3>
           </div>
           <p className="text-sm text-slate-500">Showing the next reservations configured by admin.</p>
         </div>

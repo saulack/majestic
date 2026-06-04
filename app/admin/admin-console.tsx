@@ -163,7 +163,7 @@ export function AdminConsole({
       </div>
 
       <div className="card p-5 sm:p-6">
-        <h2 className="text-xl sm:text-2xl">Create Account</h2>
+        <h2 className="text-xl sm:text-2xl">Invite Center</h2>
         <p className="mt-2 text-sm text-slate-600">Create a shareable invite link. The recipient will provide name, email, and password during registration.</p>
 
         <form

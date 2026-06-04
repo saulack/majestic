@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type PropsWithChildren } from "react";
-import { CalendarDays, ChartColumnBig, Bell, Home, ShieldCheck, UserRound, Info } from "lucide-react";
+import { CalendarDays, ChartColumnBig, Home, ShieldCheck, UserRound, Info } from "lucide-react";
 import { currentUser } from "@/lib/mock-data";
 import { isSuperadmin } from "@/lib/rbac";
 import { RolePreviewRestore } from "@/components/role-preview-restore";
@@ -68,9 +68,6 @@ export function AppShell({ children }: PropsWithChildren) {
           <NavItem href="/info" label="Info" icon={<Info className="h-4 w-4" />} />
           <NavItem href="/account" label="Account" icon={<UserRound className="h-4 w-4" />} />
           {isSuperadmin(effectiveUser) ? <NavItem href="/admin" label="Admin" icon={<ShieldCheck className="h-4 w-4" />} /> : null}
-          {isSuperadmin(effectiveUser) ? (
-            <NavItem href="/settings/notifications" label="Invites" icon={<Bell className="h-4 w-4" />} />
-          ) : null}
         </nav>
       </header>
       <main className="mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6 sm:pb-16">{children}</main>

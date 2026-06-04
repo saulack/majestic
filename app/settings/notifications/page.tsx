@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { NotificationsClientPage } from "@/app/settings/notifications/notifications-client";
 import { currentUser } from "@/lib/mock-data";
 import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
 import { isSuperadmin } from "@/lib/rbac";
@@ -14,5 +13,5 @@ export default async function NotificationsPage() {
     redirect("/");
   }
 
-  return <NotificationsClientPage />;
+  redirect("/admin");
 }

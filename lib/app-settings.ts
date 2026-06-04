@@ -17,10 +17,31 @@ async function readAppSetting(key: string): Promise<unknown | null> {
 
 export async function getBooleanAppSetting(key: string, fallback = false): Promise<boolean> {
   const value = await readAppSetting(key);
-  return typeof value === "boolean" ? value : fallback;
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+
+  return fallback;
 }
 
 export async function getNumberAppSetting(key: string, fallback: number): Promise<number> {
   const value = await readAppSetting(key);
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return fallback;
 }
