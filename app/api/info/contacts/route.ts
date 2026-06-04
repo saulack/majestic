@@ -85,12 +85,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unable to resolve current user profile." }, { status: 403 });
   }
 
-  const supabase = await createServerSupabaseClient();
-  if (!supabase) {
+  const admin = createAdminClient();
+  if (!admin) {
     return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from("info_contacts")
     .insert({
       name,
@@ -111,55 +111,52 @@ export async function POST(request: Request) {
   }
 
   if (isMaintenance) {
-    const admin = createAdminClient();
-    if (admin) {
-      const { data: existingType } = await admin
+    const { data: existingType } = await admin
+      .from("maintenance_types")
+      .select("id,threshold_days")
+      .ilike("name", maintenanceCategory)
+      .maybeSingle();
+
+    let maintenanceTypeId = existingType?.id;
+
+    if (!existingType) {
+      const { data: createdType } = await admin
         .from("maintenance_types")
-        .select("id,threshold_days")
-        .ilike("name", maintenanceCategory)
-        .maybeSingle();
+        .insert({
+        name: maintenanceCategory,
+        threshold_days: 30,
+        created_by: auth.userId
+        })
+        .select("id")
+        .single();
 
-      let maintenanceTypeId = existingType?.id;
+      maintenanceTypeId = createdType?.id;
+    }
 
-      if (!existingType) {
-        const { data: createdType } = await admin
-          .from("maintenance_types")
-          .insert({
-          name: maintenanceCategory,
-          threshold_days: 30,
-          created_by: auth.userId
-          })
+    if (maintenanceTypeId) {
+      if (profile.role === "superadmin") {
+        await admin.from("maintenance_types").update({ threshold_days: maintenanceThresholdDays }).eq("id", maintenanceTypeId);
+      } else {
+        const { data: pendingApproval } = await admin
+          .from("maintenance_threshold_approvals")
           .select("id")
-          .single();
+          .eq("maintenance_type_id", maintenanceTypeId)
+          .eq("requested_by", auth.userId)
+          .eq("status", "pending")
+          .maybeSingle();
 
-        maintenanceTypeId = createdType?.id;
-      }
-
-      if (maintenanceTypeId) {
-        if (profile.role === "superadmin") {
-          await admin.from("maintenance_types").update({ threshold_days: maintenanceThresholdDays }).eq("id", maintenanceTypeId);
-        } else {
-          const { data: pendingApproval } = await admin
+        if (pendingApproval?.id) {
+          await admin
             .from("maintenance_threshold_approvals")
-            .select("id")
-            .eq("maintenance_type_id", maintenanceTypeId)
-            .eq("requested_by", auth.userId)
-            .eq("status", "pending")
-            .maybeSingle();
-
-          if (pendingApproval?.id) {
-            await admin
-              .from("maintenance_threshold_approvals")
-              .update({ proposed_threshold_days: maintenanceThresholdDays, created_at: new Date().toISOString() })
-              .eq("id", pendingApproval.id);
-          } else {
-            await admin.from("maintenance_threshold_approvals").insert({
-              maintenance_type_id: maintenanceTypeId,
-              proposed_threshold_days: maintenanceThresholdDays,
-              requested_by: auth.userId,
-              status: "pending"
-            });
-          }
+            .update({ proposed_threshold_days: maintenanceThresholdDays, created_at: new Date().toISOString() })
+            .eq("id", pendingApproval.id);
+        } else {
+          await admin.from("maintenance_threshold_approvals").insert({
+            maintenance_type_id: maintenanceTypeId,
+            proposed_threshold_days: maintenanceThresholdDays,
+            requested_by: auth.userId,
+            status: "pending"
+          });
         }
       }
     }
