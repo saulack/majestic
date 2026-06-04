@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticated } from "@/lib/admin-auth";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type NotificationSettingsInput = {
   reservationConfirmationEmail?: boolean;
@@ -13,8 +13,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: auth.message }, { status: 403 });
   }
 
-  const supabase = await createServerSupabaseClient();
-  if (!supabase) {
+  const admin = createAdminClient();
+  if (!admin) {
     return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   const reservationConfirmationEmail = Boolean(body.reservationConfirmationEmail);
   const reservationBookedByOtherEmail = Boolean(body.reservationBookedByOtherEmail);
 
-  const { error } = await supabase.from("notification_preferences").upsert(
+  const { error } = await admin.from("notification_preferences").upsert(
     {
       user_id: auth.userId,
       reservation_confirmation_email: reservationConfirmationEmail,

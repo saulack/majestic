@@ -182,6 +182,7 @@ export async function getAllReservations(): Promise<Reservation[]> {
       user_id,
       start_date,
       end_date,
+      shared_with_user_ids,
       notes,
       status,
       decline_reason,
@@ -203,6 +204,7 @@ export async function getAllReservations(): Promise<Reservation[]> {
     id: row.id as string,
     userId: row.user_id as string,
     userName: ((row.owner as unknown as { full_name: string } | null)?.full_name) ?? "Unknown",
+    sharedWithUserIds: (row.shared_with_user_ids as string[] | null) ?? [],
     createdByUserId: (row.created_by as string | null) ?? undefined,
     createdByName: ((row.creator as unknown as { full_name: string } | null)?.full_name) ?? undefined,
     startDate: row.start_date as string,
@@ -230,6 +232,7 @@ export async function getReservationsForUser(userId: string): Promise<Reservatio
       user_id,
       start_date,
       end_date,
+      shared_with_user_ids,
       notes,
       status,
       decline_reason,
@@ -252,6 +255,7 @@ export async function getReservationsForUser(userId: string): Promise<Reservatio
     id: row.id as string,
     userId: row.user_id as string,
     userName: ((row.owner as unknown as { full_name: string } | null)?.full_name) ?? "Unknown",
+    sharedWithUserIds: (row.shared_with_user_ids as string[] | null) ?? [],
     createdByUserId: (row.created_by as string | null) ?? undefined,
     createdByName: ((row.creator as unknown as { full_name: string } | null)?.full_name) ?? undefined,
     startDate: row.start_date as string,
@@ -291,12 +295,12 @@ export async function getAllProfiles(): Promise<UserProfile[]> {
 }
 
 export async function getMaintenanceTypes(): Promise<MaintenanceType[]> {
-  const supabase = await createServerSupabaseClient();
-  if (!supabase) {
+  const admin = createAdminClient();
+  if (!admin) {
     return [];
   }
 
-  const { data: maintenanceContacts, error: contactsError } = await supabase
+  const { data: maintenanceContacts, error: contactsError } = await admin
     .from("info_contacts")
     .select("role_function,maintenance_category")
     .eq("is_maintenance", true);
@@ -326,7 +330,7 @@ export async function getMaintenanceTypes(): Promise<MaintenanceType[]> {
     return [];
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from("maintenance_types")
     .select("id,name,threshold_days,created_by,created_at")
     .order("name", { ascending: true });
@@ -339,31 +343,28 @@ export async function getMaintenanceTypes(): Promise<MaintenanceType[]> {
   const missingCategories = [...activeCategoryNames].filter((name) => !existingTypeNames.has(name));
 
   if (missingCategories.length > 0) {
-    const admin = createAdminClient();
-    if (admin) {
-      await admin.from("maintenance_types").insert(
-        missingCategories.map((name) => ({
-          name: categoryDisplayNames.get(name) ?? name,
-          threshold_days: 30
-        }))
-      );
+    await admin.from("maintenance_types").insert(
+      missingCategories.map((name) => ({
+        name: categoryDisplayNames.get(name) ?? name,
+        threshold_days: 30
+      }))
+    );
 
-      const { data: refreshedData, error: refreshedError } = await supabase
-        .from("maintenance_types")
-        .select("id,name,threshold_days,created_by,created_at")
-        .order("name", { ascending: true });
+    const { data: refreshedData, error: refreshedError } = await admin
+      .from("maintenance_types")
+      .select("id,name,threshold_days,created_by,created_at")
+      .order("name", { ascending: true });
 
-      if (!refreshedError && refreshedData) {
-        return refreshedData
-          .filter((entry) => activeCategoryNames.has(entry.name.trim().toLowerCase()))
-          .map((entry) => ({
-            id: entry.id,
-            name: entry.name,
-            thresholdDays: entry.threshold_days,
-            createdByUserId: (entry.created_by as string | null) ?? undefined,
-            createdAt: entry.created_at
-          }));
-      }
+    if (!refreshedError && refreshedData) {
+      return refreshedData
+        .filter((entry) => activeCategoryNames.has(entry.name.trim().toLowerCase()))
+        .map((entry) => ({
+          id: entry.id,
+          name: entry.name,
+          thresholdDays: entry.threshold_days,
+          createdByUserId: (entry.created_by as string | null) ?? undefined,
+          createdAt: entry.created_at
+        }));
     }
   }
 

@@ -40,7 +40,7 @@ export async function PATCH(request: Request) {
 
   const { data: existingReservation, error: existingError } = await supabase
     .from("reservations")
-    .select("id,user_id")
+    .select("id,user_id,shared_with_user_ids")
     .eq("id", reservationId)
     .maybeSingle();
 
@@ -54,13 +54,20 @@ export async function PATCH(request: Request) {
 
   const { data: conflicts } = await supabase
     .from("reservations")
-    .select("id")
+    .select("id,user_id,shared_with_user_ids")
     .lte("start_date", endDate)
     .gte("end_date", startDate)
     .in("status", ["pending", "approved"])
     .neq("id", reservationId);
 
-  if (conflicts && conflicts.length > 0) {
+  const requestedSharedSet = new Set((existingReservation.shared_with_user_ids as string[] | null) ?? []);
+  const hasDisallowedConflict = (conflicts ?? []).some((conflict) => {
+    const existingSharedSet = new Set((conflict.shared_with_user_ids as string[] | null) ?? []);
+    const explicitlyAllowed = requestedSharedSet.has(conflict.user_id) || existingSharedSet.has(auth.userId);
+    return !explicitlyAllowed;
+  });
+
+  if (hasDisallowedConflict) {
     return NextResponse.json({ error: "This date range conflicts with an existing reservation." }, { status: 400 });
   }
 

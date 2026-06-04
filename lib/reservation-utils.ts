@@ -1,11 +1,24 @@
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import type { Reservation } from "@/lib/types";
 
+function canShareOverlap(
+  reservation: Reservation,
+  bookingUserId: string,
+  requestedSharedWithUserIds: string[]
+) {
+  const requestedSet = new Set(requestedSharedWithUserIds);
+  const existingSet = new Set(reservation.sharedWithUserIds ?? []);
+
+  return requestedSet.has(reservation.userId) || existingSet.has(bookingUserId);
+}
+
 export function hasDateConflict(
   reservations: Reservation[],
   startDate: string,
   endDate: string,
-  ignoreReservationId?: string
+  ignoreReservationId?: string,
+  bookingUserId?: string,
+  requestedSharedWithUserIds: string[] = []
 ): boolean {
   const start = parseISO(startDate);
   const end = parseISO(endDate);
@@ -17,6 +30,10 @@ export function hasDateConflict(
 
     const bookedStart = parseISO(reservation.startDate);
     const bookedEnd = parseISO(reservation.endDate);
+
+    if (bookingUserId && canShareOverlap(reservation, bookingUserId, requestedSharedWithUserIds)) {
+      return false;
+    }
 
     return start <= bookedEnd && end >= bookedStart;
   });

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { isBiometricAuthEnabled, verifyBiometricAuthentication } from "@/lib/biometric-auth";
+import { isBiometricAuthEnabled, supportsBiometricAuth, verifyBiometricAuthentication } from "@/lib/biometric-auth";
 import { activateLocalAuthSession, getLocalAuthDefaults, readLocalAuthSnapshot, setLocalAuthPassword } from "@/lib/local-auth";
 
 function resolveLoginEmail(identifier: string) {
@@ -17,8 +17,10 @@ function emailLooksValid(value: string) {
 
 export default function LoginPage() {
   const router = useRouter();
+  const biometricAvailable = supportsBiometricAuth() && isBiometricAuthEnabled();
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loginMethod, setLoginMethod] = useState<"password" | "biometric">("password");
   const [resetEmail, setResetEmail] = useState("");
   const [resetUsername, setResetUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -81,15 +83,6 @@ export default function LoginPage() {
       return;
     }
 
-    if (isBiometricAuthEnabled()) {
-      const biometric = await verifyBiometricAuthentication();
-      if (!biometric.ok) {
-        await supabase.auth.signOut();
-        setMessage(biometric.error ?? "Biometric authentication failed.");
-        return;
-      }
-    }
-
     setLocalAuthPassword(newPassword.trim());
     activateLocalAuthSession(resetUsername || resetEmail);
     setResetEmail("");
@@ -125,14 +118,6 @@ export default function LoginPage() {
     const localPasswordMatches = password === localSnapshot.password;
 
     if (localUsernameMatches && localPasswordMatches && !createClient()) {
-      if (isBiometricAuthEnabled()) {
-        const biometric = await verifyBiometricAuthentication();
-        if (!biometric.ok) {
-          setMessage(biometric.error ?? "Biometric authentication failed.");
-          return;
-        }
-      }
-
       activateLocalAuthSession(identifier);
       setMessage("Signed in with the local session.");
       router.push("/");
@@ -143,14 +128,6 @@ export default function LoginPage() {
     const supabase = createClient();
     if (!supabase) {
       if (localUsernameMatches && localPasswordMatches) {
-        if (isBiometricAuthEnabled()) {
-          const biometric = await verifyBiometricAuthentication();
-          if (!biometric.ok) {
-            setMessage(biometric.error ?? "Biometric authentication failed.");
-            return;
-          }
-        }
-
         activateLocalAuthSession(identifier);
         setMessage("Signed in with the local session.");
         router.push("/");
@@ -196,15 +173,6 @@ export default function LoginPage() {
     setBusy(false);
 
     if (!error) {
-      if (isBiometricAuthEnabled()) {
-        const biometric = await verifyBiometricAuthentication();
-        if (!biometric.ok) {
-          await supabase.auth.signOut();
-          setMessage(biometric.error ?? "Biometric authentication failed.");
-          return;
-        }
-      }
-
       activateLocalAuthSession(identifier);
       router.push("/");
       router.refresh();
@@ -212,14 +180,6 @@ export default function LoginPage() {
     }
 
     if (localUsernameMatches && localPasswordMatches) {
-      if (isBiometricAuthEnabled()) {
-        const biometric = await verifyBiometricAuthentication();
-        if (!biometric.ok) {
-          setMessage(biometric.error ?? "Biometric authentication failed.");
-          return;
-        }
-      }
-
       activateLocalAuthSession(identifier);
       setMessage("Signed in with the local session.");
       router.push("/");
@@ -230,42 +190,164 @@ export default function LoginPage() {
     setMessage(error.message);
   }
 
+  async function handleBiometricLogin() {
+    if (!biometricAvailable) {
+      setMessage("Biometric sign-in is not available. Use password sign-in.");
+      return;
+    }
+
+    const snapshot = readLocalAuthSnapshot();
+    const identifier = (loginIdentifier.trim().toLowerCase() || snapshot.username || "").trim();
+
+    if (!identifier || !emailLooksValid(identifier)) {
+      setMessage("Enter your account email, then try biometric sign-in.");
+      return;
+    }
+
+    if (!snapshot.password) {
+      setMessage("No saved credentials found for biometric sign-in. Use password sign-in first.");
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+
+    const biometric = await verifyBiometricAuthentication();
+    if (!biometric.ok) {
+      setBusy(false);
+      setMessage(biometric.error ?? "Biometric authentication failed.");
+      return;
+    }
+
+    const supabase = createClient();
+    if (!supabase) {
+      activateLocalAuthSession(identifier);
+      setBusy(false);
+      setMessage("Signed in with biometric authentication.");
+      router.push("/");
+      router.refresh();
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: identifier,
+      password: snapshot.password
+    });
+
+    setBusy(false);
+
+    if (error) {
+      setMessage("Biometric verified, but saved credentials are outdated. Use password sign-in once to refresh.");
+      return;
+    }
+
+    setLoginIdentifier(identifier);
+    activateLocalAuthSession(identifier);
+    router.push("/");
+    router.refresh();
+  }
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-6">
       <div className="card w-full p-6 sm:p-8">
         <p className="text-xs uppercase tracking-[0.3em] text-amber-700">Secure Access</p>
         <h1 className="mt-3 text-2xl sm:text-3xl">Sign in</h1>
-        <p className="mt-2 text-sm text-slate-600">Use your username and password to access the apartment app.</p>
+        <p className="mt-2 text-sm text-slate-600">Choose password or biometric sign-in. You can switch methods any time.</p>
 
-        <form
-          className="mt-6 grid gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const formData = new FormData(event.currentTarget);
-            void handleLogin(formData);
-          }}
-        >
-          <label className="grid gap-1.5 text-sm font-medium">
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Email</span>
-            <input
-              name="email"
-              type="email"
-              value={loginIdentifier}
-              onChange={(event) => setLoginIdentifier(event.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2"
-              placeholder="name@example.com"
-              autoComplete="email"
-              required
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium">
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Password</span>
-            <input name="password" type="password" className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Password" />
-          </label>
-          <button type="submit" disabled={busy} className="rounded-lg bg-amber-700 px-4 py-2 text-white">
-            {busy ? "Signing in..." : "Sign in"}
+        <div className="mt-5 inline-flex rounded-lg border border-slate-300 bg-white p-1">
+          <button
+            type="button"
+            onClick={() => {
+              setLoginMethod("password");
+              setMessage("");
+            }}
+            className={[
+              "rounded-md px-3 py-1.5 text-sm",
+              loginMethod === "password" ? "bg-amber-700 text-white" : "text-slate-700"
+            ].join(" ")}
+          >
+            Password
           </button>
-        </form>
+          <button
+            type="button"
+            disabled={!biometricAvailable}
+            onClick={() => {
+              setLoginMethod("biometric");
+              setMessage("");
+            }}
+            className={[
+              "rounded-md px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50",
+              loginMethod === "biometric" ? "bg-amber-700 text-white" : "text-slate-700"
+            ].join(" ")}
+          >
+            Biometric
+          </button>
+        </div>
+
+        {!biometricAvailable ? (
+          <p className="mt-2 text-xs text-slate-500">
+            Enable biometric authentication in Account to use passwordless biometric sign-in.
+          </p>
+        ) : null}
+
+        {loginMethod === "password" ? (
+          <form
+            className="mt-6 grid gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const formData = new FormData(event.currentTarget);
+              void handleLogin(formData);
+            }}
+          >
+            <label className="grid gap-1.5 text-sm font-medium">
+              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Email</span>
+              <input
+                name="email"
+                type="email"
+                value={loginIdentifier}
+                onChange={(event) => setLoginIdentifier(event.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2"
+                placeholder="name@example.com"
+                autoComplete="email"
+                required
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium">
+              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Password</span>
+              <input name="password" type="password" className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Password" />
+            </label>
+            <button type="submit" disabled={busy} className="rounded-lg bg-amber-700 px-4 py-2 text-white">
+              {busy ? "Signing in..." : "Sign in"}
+            </button>
+          </form>
+        ) : (
+          <div className="mt-6 grid gap-4">
+            <label className="grid gap-1.5 text-sm font-medium">
+              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Email</span>
+              <input
+                type="email"
+                value={loginIdentifier}
+                onChange={(event) => setLoginIdentifier(event.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2"
+                placeholder="name@example.com"
+                autoComplete="email"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={busy || !biometricAvailable}
+              onClick={() => {
+                void handleBiometricLogin();
+              }}
+              className="rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-60"
+            >
+              {busy ? "Verifying..." : "Sign in with biometric"}
+            </button>
+            <p className="text-xs text-slate-500">
+              Biometric sign-in skips typing your password. If credentials changed, use Password mode once.
+            </p>
+          </div>
+        )}
 
         {resetEmail ? (
           <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4">

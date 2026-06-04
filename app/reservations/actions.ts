@@ -16,6 +16,7 @@ export async function createReservation(params: {
   approvalEnabled: boolean;
   bookedForUserId: string;
   allowDoubleBooking?: boolean;
+  sharedWithUserIds?: string[];
 }): Promise<ActionResult> {
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
@@ -32,6 +33,7 @@ export async function createReservation(params: {
   }
 
   const { startDate, endDate, notes, approvalEnabled, bookedForUserId, allowDoubleBooking = false } = params;
+  const sharedWithUserIds = allowDoubleBooking ? [...new Set((params.sharedWithUserIds ?? []).map((entry) => entry.trim()).filter(Boolean))] : [];
 
   const { data: actingProfile } = await supabase
     .from("profiles")
@@ -57,18 +59,31 @@ export async function createReservation(params: {
     return { error: "End date must be on or after start date." };
   }
 
-  if (!allowDoubleBooking) {
-    // Check for overlapping approved or pending reservations unless explicitly allowed.
-    const { data: conflicts } = await supabase
-      .from("reservations")
-      .select("id")
-      .lte("start_date", endDate)
-      .gte("end_date", startDate)
-      .in("status", ["pending", "approved"]);
+  if (allowDoubleBooking && sharedWithUserIds.length === 0) {
+    return { error: "Choose at least one user to share overlap access with." };
+  }
 
-    if (conflicts && conflicts.length > 0) {
-      return { error: "This date range conflicts with an existing reservation." };
+  // Check for overlapping approved or pending reservations.
+  const { data: conflicts } = await supabase
+    .from("reservations")
+    .select("id,user_id,shared_with_user_ids")
+    .lte("start_date", endDate)
+    .gte("end_date", startDate)
+    .in("status", ["pending", "approved"]);
+
+  const requestedSharedSet = new Set(sharedWithUserIds);
+  const disallowedConflict = (conflicts ?? []).some((conflict) => {
+    if (!allowDoubleBooking) {
+      return true;
     }
+
+    const existingSharedSet = new Set((conflict.shared_with_user_ids as string[] | null) ?? []);
+    const explicitlyAllowed = requestedSharedSet.has(conflict.user_id) || existingSharedSet.has(bookedForUserId);
+    return !explicitlyAllowed;
+  });
+
+  if (disallowedConflict) {
+    return { error: "This date range conflicts with a reservation that is not shared with the selected user set." };
   }
 
   const { data: insertedReservation, error: insertError } = await supabase
@@ -76,6 +91,7 @@ export async function createReservation(params: {
     .insert({
       user_id: bookedForUserId,
       created_by: user.id,
+      shared_with_user_ids: sharedWithUserIds,
       start_date: startDate,
       end_date: endDate,
       notes: notes.trim() || null,

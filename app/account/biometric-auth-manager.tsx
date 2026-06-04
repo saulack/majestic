@@ -38,7 +38,7 @@ export function BiometricAuthManager() {
     <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
       <h3 className="text-lg font-semibold">Biometric Authentication</h3>
       <p className="mt-2 text-sm text-slate-600">
-        Optional security: after entering password, require Face ID or fingerprint from your device.
+        Optional sign-in method: use Face ID or fingerprint instead of typing password, or switch back to password any time on the login page.
       </p>
 
       {!supported ? (
@@ -47,7 +47,7 @@ export function BiometricAuthManager() {
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
           <div>
             <p className="text-sm font-medium text-slate-800">{enabled ? "Biometric auth enabled" : busy ? "Enabling biometric auth..." : "Biometric auth disabled"}</p>
-            <p className="text-sm text-slate-500">Use the switch to require Face ID or fingerprint after password entry.</p>
+            <p className="text-sm text-slate-500">Use the switch to enable or disable biometric sign-in. Password sign-in always remains available.</p>
           </div>
           <ToggleSwitch
             checked={enabled}

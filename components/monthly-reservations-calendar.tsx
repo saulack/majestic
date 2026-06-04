@@ -68,6 +68,7 @@ export function MonthlyReservationsCalendar({
   const [reservationMode, setReservationMode] = useState<"self" | "other">("self");
   const [selectedUserId, setSelectedUserId] = useState(actingUser.id);
   const [allowDoubleBooking, setAllowDoubleBooking] = useState(false);
+  const [sharedWithUserIds, setSharedWithUserIds] = useState<string[]>([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -90,7 +91,10 @@ export function MonthlyReservationsCalendar({
   const activeEnd = endDate;
   const otherUsers = users.filter((user) => user.id !== actingUser.id);
   const bookingTargetId = reservationMode === "self" ? actingUser.id : selectedUserId;
-  const selectionHasConflict = activeStart && activeEnd ? hasDateConflict(reservations, activeStart, activeEnd) : false;
+  const shareableUsers = users.filter((user) => user.id !== bookingTargetId);
+  const selectionHasConflict = activeStart && activeEnd
+    ? hasDateConflict(reservations, activeStart, activeEnd, undefined, bookingTargetId, sharedWithUserIds)
+    : false;
 
   useEffect(() => {
     function stopDragging() {
@@ -113,21 +117,9 @@ export function MonthlyReservationsCalendar({
     setSelectionStatus(source === "calendar" ? "Selection updated from calendar." : "Selection updated from date fields.");
   }
 
-  function isBookedDate(dayKey: string) {
-    return reservations.some(
-      (reservation) => reservation.status !== "declined" && dayKey >= reservation.startDate && dayKey <= reservation.endDate
-    );
-  }
-
   function canSelectRange(first: string, second: string) {
-    if (allowDoubleBooking) {
-      return true;
-    }
-
     const [rangeStart, rangeEnd] = normalizeRange(first, second);
-    const rangeDays = eachDayOfInterval({ start: parseISO(rangeStart), end: parseISO(rangeEnd) });
-
-    return !rangeDays.some((day) => isBookedDate(format(day, "yyyy-MM-dd")));
+    return !hasDateConflict(reservations, rangeStart, rangeEnd, undefined, bookingTargetId, allowDoubleBooking ? sharedWithUserIds : []);
   }
 
   function handleCalendarClick(dayKey: string) {
@@ -258,6 +250,7 @@ export function MonthlyReservationsCalendar({
     setReservationMode("self");
     setSelectedUserId(actingUser.id);
     setAllowDoubleBooking(false);
+    setSharedWithUserIds([]);
   }
 
   function handleSave() {
@@ -279,6 +272,11 @@ export function MonthlyReservationsCalendar({
       return;
     }
 
+    if (allowDoubleBooking && sharedWithUserIds.length === 0) {
+      setFormMessage({ type: "error", text: "Choose at least one user to allow overlap for." });
+      return;
+    }
+
     setFormMessage(null);
     startTransition(async () => {
       const result = await createReservation({
@@ -287,6 +285,7 @@ export function MonthlyReservationsCalendar({
         notes,
         bookedForUserId: bookingTargetId,
         allowDoubleBooking,
+        sharedWithUserIds,
         approvalEnabled: approvalsEnabled
       });
 
@@ -377,11 +376,13 @@ export function MonthlyReservationsCalendar({
                     if (checked) {
                       setReservationMode("other");
                       setSelectedUserId(otherUsers[0]?.id ?? "");
+                      setSharedWithUserIds([]);
                       return;
                     }
 
                     setReservationMode("self");
                     setSelectedUserId(actingUser.id);
+                    setSharedWithUserIds([]);
                   }}
                   srLabel="Toggle reservation target"
                   offLabel="Me"
@@ -394,7 +395,15 @@ export function MonthlyReservationsCalendar({
           {reservationMode === "other" ? (
             <label className="grid gap-1.5 font-medium sm:col-span-2">
               <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Choose user</span>
-              <select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2">
+              <select
+                value={selectedUserId}
+                onChange={(event) => {
+                  const nextUserId = event.target.value;
+                  setSelectedUserId(nextUserId);
+                  setSharedWithUserIds((current) => current.filter((id) => id !== nextUserId));
+                }}
+                className="rounded-lg border border-slate-300 px-3 py-2"
+              >
                 {otherUsers.map((user) => (
                   <option key={user.id} value={user.id}>
                     {user.fullName}
@@ -409,17 +418,59 @@ export function MonthlyReservationsCalendar({
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
               <div>
                 <p className="text-sm font-medium text-slate-800">{allowDoubleBooking ? "Double booking allowed" : "Double booking off"}</p>
-                <p className="text-sm text-slate-500">Turn this on only when two people are intentionally sharing the same stay dates.</p>
+                <p className="text-sm text-slate-500">Turn this on only when specific users are intentionally sharing the same stay dates.</p>
               </div>
               <ToggleSwitch
                 checked={allowDoubleBooking}
-                onCheckedChange={setAllowDoubleBooking}
+                onCheckedChange={(checked) => {
+                  setAllowDoubleBooking(checked);
+                  if (!checked) {
+                    setSharedWithUserIds([]);
+                  }
+                }}
                 srLabel="Allow double booking"
                 offLabel="Off"
                 onLabel="On"
               />
             </div>
           </div>
+
+          {allowDoubleBooking ? (
+            <div className="grid gap-2 sm:col-span-2">
+              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Allowed overlap users</span>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                {shareableUsers.length === 0 ? (
+                  <p className="text-sm text-slate-500">No other users available for shared overlap.</p>
+                ) : (
+                  <div className="grid gap-2">
+                    {shareableUsers.map((user) => (
+                      <label key={user.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium text-slate-800">{user.fullName}</p>
+                          <p className="text-xs text-slate-500">Allow this user to overlap with this reservation.</p>
+                        </div>
+                        <ToggleSwitch
+                          checked={sharedWithUserIds.includes(user.id)}
+                          onCheckedChange={(checked) => {
+                            setSharedWithUserIds((current) => {
+                              if (checked) {
+                                return current.includes(user.id) ? current : [...current, user.id];
+                              }
+
+                              return current.filter((entry) => entry !== user.id);
+                            });
+                          }}
+                          srLabel={`Allow overlap for ${user.fullName}`}
+                          offLabel="No"
+                          onLabel="Yes"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <label className="mt-4 grid gap-1.5 text-sm font-medium">

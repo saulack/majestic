@@ -18,6 +18,7 @@ export type Reservation = {
   id: string;
   userId: string;
   userName: string;
+  sharedWithUserIds?: string[];
   createdByUserId?: string;
   createdByName?: string;
   startDate: string;

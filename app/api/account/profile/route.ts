@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAuthenticated } from "@/lib/admin-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -8,9 +9,19 @@ type ProfileBody = {
 };
 
 export async function POST(request: Request) {
+  const auth = await requireAuthenticated();
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.message }, { status: 403 });
+  }
+
   const supabase = await createServerSupabaseClient();
 
   if (!supabase) {
+    return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
+  }
+
+  const admin = createAdminClient();
+  if (!admin) {
     return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
@@ -31,10 +42,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Full name and email are required." }, { status: 400 });
   }
 
-  const { data: updatedProfile, error: profileError } = await supabase
+  const { data: updatedProfile, error: profileError } = await admin
     .from("profiles")
     .update({ full_name: fullName, email })
-    .eq("id", user.id)
+    .eq("id", auth.userId)
     .select("id")
     .maybeSingle();
 
@@ -43,18 +54,9 @@ export async function POST(request: Request) {
   }
 
   if (!updatedProfile) {
-    const admin = createAdminClient();
-
-    if (!admin) {
-      return NextResponse.json(
-        { error: "Profile row is missing and admin client is not configured." },
-        { status: 500 }
-      );
-    }
-
     const { error: upsertProfileError } = await admin.from("profiles").upsert(
       {
-        id: user.id,
+        id: auth.userId,
         full_name: fullName,
         email
       },
