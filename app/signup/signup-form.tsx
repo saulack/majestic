@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useState } from "react";
 
 const passwordRules = [
   { label: "At least 8 characters", test: (value: string) => value.length >= 8 },
@@ -13,59 +12,16 @@ const passwordRules = [
   { label: "One special character", test: (value: string) => /[^A-Za-z0-9]/.test(value) }
 ];
 
-export function SignupForm() {
+export function SignupForm({ inviteToken }: { inviteToken: string }) {
   const router = useRouter();
   const [message, setMessage] = useState<string>("");
   const [busy, setBusy] = useState(false);
-  const [sessionChecked, setSessionChecked] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
   const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  const supabase = useMemo(() => createClient(), []);
-  const ready = !supabase || sessionChecked;
-
-  useEffect(() => {
-    if (!supabase) {
-      return;
-    }
-
-    let mounted = true;
-
-    void (async () => {
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
-
-      if (!mounted) {
-        return;
-      }
-
-      setInviteEmail(user?.email ?? "");
-      setFullName((user?.user_metadata.full_name as string | undefined) ?? "");
-      setSessionChecked(true);
-    })();
-
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!mounted) {
-        return;
-      }
-
-      setInviteEmail(session?.user?.email ?? "");
-      setFullName((session?.user?.user_metadata.full_name as string | undefined) ?? "");
-      setSessionChecked(true);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [supabase]);
 
   const passwordChecks = passwordRules.map((rule) => ({
     label: rule.label,
@@ -76,15 +32,16 @@ export function SignupForm() {
 
   async function handleSignup() {
     const cleanName = fullName.trim();
+    const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    if (!inviteEmail) {
-      setMessage("Open this page from your invite email to finish registration.");
+    if (!inviteToken) {
+      setMessage("This invite link is missing or invalid.");
       return;
     }
 
-    if (!cleanName || !cleanPassword || !confirmPassword.trim()) {
-      setMessage("Name, password, and confirm password are required.");
+    if (!cleanName || !cleanEmail || !cleanPassword || !confirmPassword.trim()) {
+      setMessage("Name, email, password, and confirm password are required.");
       return;
     }
 
@@ -98,68 +55,41 @@ export function SignupForm() {
       return;
     }
 
-    if (!supabase) {
-      setMessage("Supabase is not configured yet. Add env variables first.");
-      return;
-    }
-
     setBusy(true);
     setMessage("");
 
-    const {
-      data: { user },
-      error: userError
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setBusy(false);
-      setMessage("Your invite session could not be verified. Reopen the invite link from your email.");
-      return;
-    }
-
-    const { error: authError } = await supabase.auth.updateUser({
-      password: cleanPassword,
-      data: {
-        full_name: cleanName
-      }
+    const response = await fetch("/api/auth/complete-invite-signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        inviteToken,
+        fullName: cleanName,
+        email: cleanEmail,
+        password: cleanPassword
+      })
     });
 
-    if (authError) {
-      setBusy(false);
-      setMessage(authError.message);
-      return;
-    }
-
-    const { error: profileError } = await supabase.from("profiles").update({ full_name: cleanName }).eq("id", user.id);
+    const payload = (await response.json()) as { message?: string; error?: string };
 
     setBusy(false);
-    if (profileError) {
-      setMessage(profileError.message);
+
+    if (!response.ok || payload.error) {
+      setMessage(payload.error ?? "Failed to complete registration.");
       return;
     }
 
-    setMessage("Registration complete. Redirecting to your dashboard...");
-    router.push("/");
+    setMessage(payload.message ?? "Registration complete. Redirecting to sign in...");
+    router.push("/login");
     router.refresh();
   }
 
-  if (!ready) {
-    return (
-      <main className="mx-auto flex min-h-screen w-full max-w-lg items-center px-6">
-        <div className="card w-full p-6 sm:p-8">
-          <p className="text-sm text-slate-600">Loading invite details...</p>
-        </div>
-      </main>
-    );
-  }
-
-  if (!inviteEmail) {
+  if (!inviteToken) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-lg items-center px-6">
         <div className="card w-full p-6 sm:p-8">
           <p className="text-xs uppercase tracking-[0.3em] text-amber-700">Invite only</p>
           <h1 className="mt-3 text-2xl sm:text-3xl">Finish registration from your invite</h1>
-          <p className="mt-2 text-sm text-slate-600">Open the email invite link to set your name and password. Public signup is not available.</p>
+          <p className="mt-2 text-sm text-slate-600">Open a valid invite link to register. Public signup is not available.</p>
           <div className="mt-6 flex items-center gap-4 text-sm">
             <Link href="/login" className="text-slate-700 hover:underline">
               Go to login
@@ -179,7 +109,7 @@ export function SignupForm() {
       <div className="card w-full p-6 sm:p-8">
         <p className="text-xs uppercase tracking-[0.3em] text-amber-700">Invite Registration</p>
         <h1 className="mt-2 text-2xl sm:text-3xl">Set up your account</h1>
-        <p className="mt-2 text-sm text-slate-600">Your invite is linked to <span className="font-medium text-slate-800">{inviteEmail}</span>. Add your name and create a secure password to finish registration.</p>
+        <p className="mt-2 text-sm text-slate-600">Add your name, email, and secure password to finish registration.</p>
 
         <form
           className="mt-6 grid gap-4"
@@ -191,6 +121,18 @@ export function SignupForm() {
           <label className="grid gap-1.5 text-sm font-medium">
             <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Name</span>
             <input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Full name" className="rounded-lg border border-slate-300 px-3 py-2" required />
+          </label>
+
+          <label className="grid gap-1.5 text-sm font-medium">
+            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Email</span>
+            <input
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              type="email"
+              placeholder="name@example.com"
+              className="rounded-lg border border-slate-300 px-3 py-2"
+              required
+            />
           </label>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">

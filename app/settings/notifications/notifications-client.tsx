@@ -7,20 +7,12 @@ export function NotificationsClientPage() {
   const [inviteLink, setInviteLink] = useState("");
   const [inviteStatus, setInviteStatus] = useState("");
 
-  async function generateInviteLink(formData: FormData) {
-    const email = String(formData.get("adminEmail") ?? "").trim().toLowerCase();
-    if (!email) {
-      setInviteStatus("Invite email is required.");
-      return;
-    }
-
+  async function generateInviteLink() {
     setInviteStatus("Creating invite link...");
     setInviteLink("");
 
     const response = await fetch("/api/admin/create-invite-link", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email })
+      method: "POST"
     });
 
     const data = (await response.json()) as { inviteUrl?: string; message?: string; error?: string };
@@ -43,17 +35,9 @@ export function NotificationsClientPage() {
           className="mt-4 grid max-w-xl gap-3"
           onSubmit={(event) => {
             event.preventDefault();
-            const formData = new FormData(event.currentTarget);
-            void generateInviteLink(formData);
+            void generateInviteLink();
           }}
         >
-          <input
-            name="adminEmail"
-            type="email"
-            placeholder="person@example.com"
-            className="rounded-lg border border-slate-300 px-3 py-2"
-            required
-          />
           <button type="submit" className="w-fit rounded-lg bg-amber-700 px-4 py-2 text-white">
             Create invite link
           </button>

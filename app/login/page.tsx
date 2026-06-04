@@ -231,11 +231,11 @@ export default function LoginPage() {
         >
           <label className="grid gap-1.5 text-sm font-medium">
             <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Username</span>
-            <input name="username" defaultValue="saulack" className="rounded-lg border border-slate-300 px-3 py-2" placeholder="saulack" />
+            <input name="username" className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Username" />
           </label>
           <label className="grid gap-1.5 text-sm font-medium">
             <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Password</span>
-            <input name="password" type="password" defaultValue="saul" className="rounded-lg border border-slate-300 px-3 py-2" placeholder="saul" />
+            <input name="password" type="password" className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Password" />
           </label>
           <button type="submit" disabled={busy} className="rounded-lg bg-amber-700 px-4 py-2 text-white">
             {busy ? "Signing in..." : "Sign in"}

@@ -164,18 +164,15 @@ export function AdminConsole({
 
       <div className="card p-5 sm:p-6">
         <h2 className="text-xl sm:text-2xl">Create Account</h2>
-        <p className="mt-2 text-sm text-slate-600">Create a shareable invite link when email is not configured. The recipient will choose their own name and password on registration.</p>
+        <p className="mt-2 text-sm text-slate-600">Create a shareable invite link. The recipient will provide name, email, and password during registration.</p>
 
         <form
           className="mt-4 grid gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            const form = new FormData(event.currentTarget);
 
             void (async () => {
-              const response = await postJson("/api/admin/create-invite-link", {
-                email: String(form.get("email") ?? "")
-              });
+              const response = await postJson("/api/admin/create-invite-link", {});
 
               if (response?.error) {
                 setManualInviteStatus(response.error);
@@ -188,10 +185,6 @@ export function AdminConsole({
             })();
           }}
         >
-          <label className="grid gap-1.5 text-sm font-medium">
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Email</span>
-            <input name="email" type="email" placeholder="Email" className="rounded-lg border border-slate-300 px-3 py-2" required />
-          </label>
           <button disabled={loading} type="submit" className="rounded-lg bg-amber-700 px-4 py-2 text-white">
             Create invite link
           </button>

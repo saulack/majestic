@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import {
   addDays,
   addMonths,
@@ -63,13 +63,11 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
   const [endDate, setEndDate] = useState("");
   const [notes, setNotes] = useState("");
   const [selectionStatus, setSelectionStatus] = useState("");
+  const [calendarSelectionError, setCalendarSelectionError] = useState("");
   const [formMessage, setFormMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
   const [declineTargetId, setDeclineTargetId] = useState<string | null>(null);
   const [declineReasonText, setDeclineReasonText] = useState("");
-  const [isDragging, setIsDragging] = useState(false);
-
-  const dragAnchorRef = useRef<string | null>(null);
 
   const monthStart = startOfMonth(monthCursor);
   const calendarStart = startOfWeek(monthStart);
@@ -81,18 +79,6 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
   const bookingTargetId = reservationMode === "self" ? actingUser.id : selectedUserId;
   const selectionHasConflict = activeStart && activeEnd ? hasDateConflict(reservations, activeStart, activeEnd) : false;
 
-  useEffect(() => {
-    function onWindowMouseUp() {
-      setIsDragging(false);
-      dragAnchorRef.current = null;
-    }
-
-    window.addEventListener("mouseup", onWindowMouseUp);
-    return () => {
-      window.removeEventListener("mouseup", onWindowMouseUp);
-    };
-  }, []);
-
   function applyRange(first: string, second: string, source: "calendar" | "input") {
     const [nextStart, nextEnd] = normalizeRange(first, second);
     setStartDate(nextStart);
@@ -100,70 +86,77 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
     setSelectionStatus(source === "calendar" ? "Selection updated from calendar." : "Selection updated from date fields.");
   }
 
+  function isBookedDate(dayKey: string) {
+    return reservations.some(
+      (reservation) => reservation.status !== "declined" && dayKey >= reservation.startDate && dayKey <= reservation.endDate
+    );
+  }
+
+  function canSelectRange(first: string, second: string) {
+    if (allowDoubleBooking) {
+      return true;
+    }
+
+    const [rangeStart, rangeEnd] = normalizeRange(first, second);
+    const rangeDays = eachDayOfInterval({ start: parseISO(rangeStart), end: parseISO(rangeEnd) });
+
+    return !rangeDays.some((day) => isBookedDate(format(day, "yyyy-MM-dd")));
+  }
+
   function handleCalendarClick(dayKey: string) {
-    if (isDragging) {
-      return;
+    if (calendarSelectionError) {
+      setCalendarSelectionError("");
     }
 
     if (!startDate || !endDate) {
+      if (!canSelectRange(dayKey, dayKey)) {
+        setCalendarSelectionError("That date is unavailable for booking. Pick another day or enable overlap booking.");
+        return;
+      }
+
       setStartDate(dayKey);
       setEndDate(dayKey);
       setSelectionStatus("Selected first day. Click another day or drag to extend.");
       return;
     }
 
-    if (startDate === endDate) {
-      applyRange(startDate, dayKey, "calendar");
-      return;
-    }
-
-    const previousEdgeDay = format(addDays(parseISO(startDate), -1), "yyyy-MM-dd");
-    const nextEdgeDay = format(addDays(parseISO(endDate), 1), "yyyy-MM-dd");
-
-    if (dayKey === previousEdgeDay) {
-      setStartDate(dayKey);
-      setSelectionStatus("Added one day to the start of the range.");
-      return;
-    }
-
-    if (dayKey === nextEdgeDay) {
-      setEndDate(dayKey);
-      setSelectionStatus("Added one day to the end of the range.");
-      return;
-    }
-
     if (dayKey >= startDate && dayKey <= endDate) {
-      setSelectionStatus("That day is already in the selected range.");
+      if (startDate === endDate) {
+        clearSelection();
+        setSelectionStatus("Selection cleared.");
+        return;
+      }
+
+      if (dayKey === startDate) {
+        const nextStart = format(addDays(parseISO(startDate), 1), "yyyy-MM-dd");
+        setStartDate(nextStart);
+        setSelectionStatus("Removed one day from the start of the range.");
+        return;
+      }
+
+      if (dayKey === endDate) {
+        const nextEnd = format(addDays(parseISO(endDate), -1), "yyyy-MM-dd");
+        setEndDate(nextEnd);
+        setSelectionStatus("Removed one day from the end of the range.");
+        return;
+      }
+
+      const trimmedEnd = format(addDays(parseISO(dayKey), -1), "yyyy-MM-dd");
+      setEndDate(trimmedEnd);
+      setSelectionStatus("Range shortened to deselect that day.");
       return;
     }
 
-    applyRange(startDate, dayKey, "calendar");
+    const nextStart = compareAsc(parseISO(dayKey), parseISO(startDate)) < 0 ? dayKey : startDate;
+    const nextEnd = compareAsc(parseISO(dayKey), parseISO(endDate)) > 0 ? dayKey : endDate;
+
+    if (!canSelectRange(nextStart, nextEnd)) {
+      setCalendarSelectionError("Some selected dates are unavailable. Choose open dates or allow overlap booking.");
+      return;
+    }
+
+    applyRange(nextStart, nextEnd, "calendar");
     setSelectionStatus("Expanded range to include selected day.");
-  }
-
-  function handleCalendarMouseDown(dayKey: string) {
-    setIsDragging(true);
-    dragAnchorRef.current = dayKey;
-    setStartDate(dayKey);
-    setEndDate(dayKey);
-    setSelectionStatus("Drag across days to select a range.");
-  }
-
-  function handleCalendarMouseEnter(dayKey: string) {
-    if (!isDragging || !dragAnchorRef.current) {
-      return;
-    }
-
-    applyRange(dragAnchorRef.current, dayKey, "calendar");
-  }
-
-  function handleCalendarMouseUp(dayKey: string) {
-    if (isDragging && dragAnchorRef.current) {
-      applyRange(dragAnchorRef.current, dayKey, "calendar");
-    }
-
-    setIsDragging(false);
-    dragAnchorRef.current = null;
   }
 
   function clearSelection() {
@@ -172,6 +165,7 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
     setNotes("");
     setSelectionStatus("");
     setFormMessage(null);
+    setCalendarSelectionError("");
     setReservationMode("self");
     setSelectedUserId(actingUser.id);
     setAllowDoubleBooking(false);
@@ -323,11 +317,13 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
           />
         </label>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" onClick={clearSelection} className="rounded-lg border border-slate-300 px-4 py-2">
-            Clear
-          </button>
-        </div>
+        {startDate && endDate ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={clearSelection} className="rounded-lg border border-slate-300 px-4 py-2">
+              Clear selection
+            </button>
+          </div>
+        ) : null}
 
         {selectionStatus ? <p className="mt-3 text-xs text-slate-700">{selectionStatus}</p> : null}
 
@@ -381,6 +377,8 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
         </div>
 
         <p className="mt-4 text-2xl font-bold text-slate-900 sm:text-3xl">{format(monthCursor, "MMMM yyyy")}</p>
+
+        {calendarSelectionError ? <p className="mt-2 text-sm text-rose-700">{calendarSelectionError}</p> : null}
 
         <div className="mt-3 flex items-center justify-end gap-2">
           <button
@@ -439,9 +437,6 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
                 key={dayKey}
                 type="button"
                 onClick={() => handleCalendarClick(dayKey)}
-                onMouseDown={() => handleCalendarMouseDown(dayKey)}
-                onMouseEnter={() => handleCalendarMouseEnter(dayKey)}
-                onMouseUp={() => handleCalendarMouseUp(dayKey)}
                 className={[
                   "min-h-24 rounded-lg border p-2 text-left text-xs transition sm:min-h-28",
                   isSameMonth(day, monthCursor) ? "" : "opacity-65",
