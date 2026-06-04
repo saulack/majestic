@@ -12,6 +12,7 @@ type ApiResult = {
   error?: string;
   mode?: "mock" | "live";
   enabled?: boolean;
+  inviteUrl?: string;
 };
 
 export function AdminConsole({
@@ -29,8 +30,10 @@ export function AdminConsole({
   const [approvalsEnabled, setApprovalsEnabled] = useState(initialApprovalsEnabled);
   const [homepageReservationCount, setHomepageReservationCount] = useState(initialHomepageReservationCount);
   const [users, setUsers] = useState(initialUsers);
+  const [manualInviteStatus, setManualInviteStatus] = useState("");
+  const [manualInviteLink, setManualInviteLink] = useState("");
 
-  async function postJson(path: string, body: Record<string, string | boolean | number>) {
+  async function postJson(path: string, body: Record<string, string | boolean | number>): Promise<ApiResult> {
     setLoading(true);
     setResult(null);
 
@@ -45,7 +48,7 @@ export function AdminConsole({
       setResult(data);
       return data;
     } catch {
-      const failure = { error: "Request failed." };
+      const failure: ApiResult = { error: "Request failed." };
       setResult(failure);
       return failure;
     } finally {
@@ -161,16 +164,28 @@ export function AdminConsole({
 
       <div className="card p-5 sm:p-6">
         <h2 className="text-xl sm:text-2xl">Create Account</h2>
-        <p className="mt-2 text-sm text-slate-600">Send an invite email. The recipient will choose their own name and password on the registration page.</p>
+        <p className="mt-2 text-sm text-slate-600">Create a shareable invite link when email is not configured. The recipient will choose their own name and password on registration.</p>
 
         <form
           className="mt-4 grid gap-4"
           onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
-            void postJson("/api/admin/create-user", {
-              email: String(form.get("email") ?? "")
-            });
+
+            void (async () => {
+              const response = await postJson("/api/admin/create-invite-link", {
+                email: String(form.get("email") ?? "")
+              });
+
+              if (response?.error) {
+                setManualInviteStatus(response.error);
+                setManualInviteLink("");
+                return;
+              }
+
+              setManualInviteStatus(response?.message ?? "Invite link created.");
+              setManualInviteLink(response?.inviteUrl ?? "");
+            })();
           }}
         >
           <label className="grid gap-1.5 text-sm font-medium">
@@ -178,9 +193,17 @@ export function AdminConsole({
             <input name="email" type="email" placeholder="Email" className="rounded-lg border border-slate-300 px-3 py-2" required />
           </label>
           <button disabled={loading} type="submit" className="rounded-lg bg-amber-700 px-4 py-2 text-white">
-            Send invite
+            Create invite link
           </button>
         </form>
+
+        {manualInviteStatus ? <p className="mt-3 text-sm text-slate-700">{manualInviteStatus}</p> : null}
+        {manualInviteLink ? (
+          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p className="text-xs uppercase tracking-[0.12em] text-amber-700">Share this link</p>
+            <p className="mt-1 text-sm break-all">{manualInviteLink}</p>
+          </div>
+        ) : null}
       </div>
 
       <div className="card p-5 sm:p-6">

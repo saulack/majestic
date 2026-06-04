@@ -18,6 +18,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email is required." }, { status: 400 });
   }
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
+
   const admin = createAdminClient();
   if (!admin) {
     return NextResponse.json({
@@ -27,7 +29,7 @@ export async function POST(request: Request) {
   }
 
   const { error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/signup`
+    redirectTo: `${appUrl}/signup`
   });
 
   if (error) {
