@@ -5,14 +5,16 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BiometricAuthManager } from "@/app/account/biometric-auth-manager";
 import { PasswordManager } from "@/app/account/password-manager";
-import type { NotificationPreference, UserProfile } from "@/lib/types";
+import type { AppRole, NotificationPreference, UserProfile } from "@/lib/types";
 
 export function AccountClientPage({
   user,
-  preferences
+  preferences,
+  previewRole
 }: {
   user: UserProfile;
   preferences?: NotificationPreference;
+  previewRole: Extract<AppRole, "admin" | "user"> | null;
 }) {
   const router = useRouter();
   const [fullName, setFullName] = useState(user.fullName);
@@ -41,7 +43,7 @@ export function AccountClientPage({
   }
 
   return (
-    <AppShell>
+    <AppShell initialRole={user.role} initialPreviewRole={previewRole}>
       <section className="card relative overflow-hidden p-5 sm:p-6">
         <h2 className="text-xl sm:text-2xl">My Account</h2>
         <p className="mt-2 text-sm text-slate-600">Edit your profile details and notification preferences.</p>

@@ -51,7 +51,7 @@ export default async function HomePage() {
     : normalizedReservations.filter((reservation) => reservation.status === "approved").length;
 
   return (
-    <AppShell initialRole={actingUser.role}>
+    <AppShell initialRole={actingUser.role} initialPreviewRole={previewRole}>
       <section className="grid gap-5 sm:gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="card overflow-hidden">
           <div className="border-b border-slate-200 bg-gradient-to-r from-[#5fb8c9] via-[#72c9b2] to-[#f6d28d] p-6 text-white sm:p-8">

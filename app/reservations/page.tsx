@@ -45,7 +45,7 @@ export default async function ReservationsPage() {
       );
 
   return (
-    <AppShell initialRole={actingUser.role}>
+    <AppShell initialRole={actingUser.role} initialPreviewRole={previewRole}>
       <MonthlyReservationsCalendar
         reservations={normalizedReservations}
         maintenanceRecords={maintenanceRecords}

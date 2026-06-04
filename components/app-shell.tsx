@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type PropsWithChildren } from "react";
+import type { PropsWithChildren } from "react";
 import { CalendarDays, ChartColumnBig, Home, ShieldCheck, UserRound, Info, Wrench } from "lucide-react";
 import { RolePreviewRestore } from "@/components/role-preview-restore";
-import { getEffectiveRole, readRolePreviewFromBrowser } from "@/lib/role-preview";
+import { getEffectiveRole } from "@/lib/role-preview";
 import type { AppRole } from "@/lib/types";
 
-export function AppShell({ children, initialRole }: PropsWithChildren<{ initialRole?: AppRole }>) {
-  const [previewRole] = useState<Extract<AppRole, "admin" | "user"> | null>(() => readRolePreviewFromBrowser());
-  const [baseRole] = useState<AppRole>(initialRole ?? "user");
-
-  const effectiveRole = getEffectiveRole(baseRole, previewRole);
+export function AppShell({
+  children,
+  initialRole,
+  initialPreviewRole
+}: PropsWithChildren<{ initialRole?: AppRole; initialPreviewRole?: Extract<AppRole, "admin" | "user"> | null }>) {
+  const previewRole = initialPreviewRole ?? null;
+  const effectiveRole = getEffectiveRole(initialRole ?? "user", previewRole);
 
   return (
     <div className="min-h-screen text-slate-900">

@@ -9,7 +9,15 @@ import type { Reservation, UserProfile } from "@/lib/types";
 
 type Scope = "currentYear" | "allTime";
 
-export function StatsClientPage({ actingUser, reservations }: { actingUser: UserProfile; reservations: Reservation[] }) {
+export function StatsClientPage({
+  actingUser,
+  reservations,
+  previewRole
+}: {
+  actingUser: UserProfile;
+  reservations: Reservation[];
+  previewRole: Extract<UserProfile["role"], "admin" | "user"> | null;
+}) {
   const [scope, setScope] = useState<Scope>("currentYear");
   const currentYear = new Date().getFullYear();
   const adminLike = isAdminLike(actingUser);
@@ -31,7 +39,7 @@ export function StatsClientPage({ actingUser, reservations }: { actingUser: User
   const pendingReservations = filteredReservations.filter((reservation) => reservation.status === "pending");
 
   return (
-    <AppShell initialRole={actingUser.role}>
+    <AppShell initialRole={actingUser.role} initialPreviewRole={previewRole}>
       <section className="card p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

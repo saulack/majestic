@@ -16,5 +16,5 @@ export default async function AccountPage() {
   const user = getEffectiveUser(profile, previewRole);
   const preferences = await getNotificationPreference(user.id);
 
-  return <AccountClientPage user={user} preferences={preferences} />;
+  return <AccountClientPage user={user} preferences={preferences} previewRole={previewRole} />;
 }

@@ -65,7 +65,7 @@ export default async function InfoPage() {
   }
 
   return (
-    <AppShell initialRole={actingUser.role}>
+    <AppShell initialRole={actingUser.role} initialPreviewRole={previewRole}>
       <section className="card p-6">
         <h2 className="text-2xl">Apartment Information</h2>
         <p className="mt-2 text-sm text-slate-600">

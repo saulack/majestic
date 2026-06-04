@@ -16,5 +16,5 @@ export default async function StatsPage() {
   const actingUser = getEffectiveUser(profile, previewRole);
   const reservations = await getAllReservations();
 
-  return <StatsClientPage actingUser={actingUser} reservations={reservations} />;
+  return <StatsClientPage actingUser={actingUser} reservations={reservations} previewRole={previewRole} />;
 }
