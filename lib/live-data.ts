@@ -385,7 +385,13 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
     return [];
   }
 
-  const { data, error } = await supabase
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  const admin = user ? createAdminClient() : null;
+  const client = admin ?? supabase;
+
+  const { data, error } = await client
     .from("maintenance_records")
     .select(`
       id,
@@ -427,6 +433,8 @@ function mapFeatureRequestRow(entry: {
   updated_at: string;
   requester: unknown;
   reviewer: unknown;
+  vote_count?: number;
+  voted_by_current_user?: boolean;
 }): FeatureRequest {
   return {
     id: entry.id,
@@ -442,8 +450,57 @@ function mapFeatureRequestRow(entry: {
     reviewedByName: ((entry.reviewer as { full_name?: string } | null)?.full_name ?? undefined)?.toString(),
     reviewedAt: entry.reviewed_at ?? undefined,
     createdAt: entry.created_at,
-    updatedAt: entry.updated_at
+    updatedAt: entry.updated_at,
+    voteCount: entry.vote_count ?? 0,
+    votedByCurrentUser: entry.voted_by_current_user ?? false
   };
+}
+
+export async function getFeatureRequestVoteCounts(): Promise<Record<string, number>> {
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return {};
+  }
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  const admin = user ? createAdminClient() : null;
+  const client = admin ?? supabase;
+
+  const { data, error } = await client.from("feature_request_votes").select("feature_request_id");
+
+  if (error || !data) {
+    return {};
+  }
+
+  const voteCounts: Record<string, number> = {};
+  for (const vote of data as Array<{ feature_request_id: string }>) {
+    voteCounts[vote.feature_request_id] = (voteCounts[vote.feature_request_id] ?? 0) + 1;
+  }
+
+  return voteCounts;
+}
+
+export async function getMyFeatureRequestVoteIds(userId: string): Promise<string[]> {
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return [];
+  }
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  const admin = user ? createAdminClient() : null;
+  const client = admin ?? supabase;
+
+  const { data, error } = await client.from("feature_request_votes").select("feature_request_id").eq("voted_by", userId);
+
+  if (error || !data) {
+    return [];
+  }
+
+  return (data as Array<{ feature_request_id: string }>).map((vote) => vote.feature_request_id);
 }
 
 export async function getMyFeatureRequests(userId: string): Promise<FeatureRequest[]> {
@@ -452,7 +509,13 @@ export async function getMyFeatureRequests(userId: string): Promise<FeatureReque
     return [];
   }
 
-  const { data, error } = await supabase
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  const admin = user ? createAdminClient() : null;
+  const client = admin ?? supabase;
+
+  const { data, error } = await client
     .from("feature_requests")
     .select(`
       id,
@@ -503,7 +566,13 @@ export async function getPendingFeatureRequests(requestType?: FeatureRequestType
     return [];
   }
 
-  let query = supabase
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  const admin = user ? createAdminClient() : null;
+  const client = admin ?? supabase;
+
+  let query = client
     .from("feature_requests")
     .select(`
       id,
@@ -559,7 +628,13 @@ export async function getQueuedFeatureRequests(requestType?: FeatureRequestType)
     return [];
   }
 
-  let query = supabase
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  const admin = user ? createAdminClient() : null;
+  const client = admin ?? supabase;
+
+  let query = client
     .from("feature_requests")
     .select(`
       id,
@@ -615,7 +690,13 @@ export async function getAllFeatureRequests(): Promise<FeatureRequest[]> {
     return [];
   }
 
-  const { data, error } = await supabase
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  const admin = user ? createAdminClient() : null;
+  const client = admin ?? supabase;
+
+  const { data, error } = await client
     .from("feature_requests")
     .select(`
       id,
@@ -665,7 +746,13 @@ export async function getMaintenanceNotifications(): Promise<MaintenanceNotifica
     return [];
   }
 
-  const { data, error } = await supabase
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  const admin = user ? createAdminClient() : null;
+  const client = admin ?? supabase;
+
+  const { data, error } = await client
     .from("maintenance_notifications")
     .select(`
       id,

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { MaintenanceRecord, MaintenanceType, UserProfile } from "@/lib/types";
+import type { MaintenanceRecord, MaintenanceThresholdApproval, MaintenanceType, UserProfile } from "@/lib/types";
 
 type ApiResult = {
   message?: string;
@@ -13,13 +13,18 @@ type ApiResult = {
 export function MaintenanceClientPage({
   actingUser,
   maintenanceTypes,
-  initialRecords
+  initialRecords,
+  initialPendingThresholdApprovals
 }: {
   actingUser: UserProfile;
   maintenanceTypes: MaintenanceType[];
   initialRecords: MaintenanceRecord[];
+  initialPendingThresholdApprovals: MaintenanceThresholdApproval[];
 }) {
   const router = useRouter();
+  const initialPendingThresholdByType = Object.fromEntries(
+    initialPendingThresholdApprovals.map((approval) => [approval.maintenanceTypeId, approval])
+  );
   const [selectedTypeId, setSelectedTypeId] = useState(maintenanceTypes[0]?.id ?? "");
   const [scheduledFor, setScheduledFor] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -27,8 +32,11 @@ export function MaintenanceClientPage({
   const [status, setStatus] = useState<ApiResult | null>(null);
   const hasMaintenanceTypes = maintenanceTypes.length > 0;
   const [thresholdDrafts, setThresholdDrafts] = useState<Record<string, number>>(
-    Object.fromEntries(maintenanceTypes.map((maintenanceType) => [maintenanceType.id, maintenanceType.thresholdDays]))
+    Object.fromEntries(
+      maintenanceTypes.map((maintenanceType) => [maintenanceType.id, initialPendingThresholdByType[maintenanceType.id]?.proposedThresholdDays ?? maintenanceType.thresholdDays])
+    )
   );
+  const [pendingThresholdByType, setPendingThresholdByType] = useState<Record<string, MaintenanceThresholdApproval>>(initialPendingThresholdByType);
   const [thresholdStatusByType, setThresholdStatusByType] = useState<Record<string, string>>({});
   const [thresholdSubmittingByType, setThresholdSubmittingByType] = useState<Record<string, boolean>>({});
 
@@ -79,6 +87,19 @@ export function MaintenanceClientPage({
       }));
 
       if (response.ok) {
+        setPendingThresholdByType((current) => ({
+          ...current,
+          [maintenanceTypeId]: {
+            id: current[maintenanceTypeId]?.id ?? `pending-${maintenanceTypeId}`,
+            maintenanceTypeId,
+            maintenanceTypeName: maintenanceTypes.find((entry) => entry.id === maintenanceTypeId)?.name ?? "Maintenance type",
+            proposedThresholdDays: thresholdDrafts[maintenanceTypeId],
+            requestedByUserId: actingUser.id,
+            requestedByName: actingUser.fullName,
+            status: "pending",
+            createdAt: new Date().toISOString()
+          }
+        }));
         router.refresh();
       }
     } catch {
@@ -174,6 +195,11 @@ export function MaintenanceClientPage({
               <div className="min-w-52 flex-1">
                 <p className="text-sm font-semibold text-slate-900">{maintenanceType.name}</p>
                 <p className="mt-1 text-xs text-slate-500">Current threshold: {maintenanceType.thresholdDays} days</p>
+                {pendingThresholdByType[maintenanceType.id] ? (
+                  <p className="mt-1 text-xs font-medium text-amber-700">
+                    Pending threshold: {pendingThresholdByType[maintenanceType.id].proposedThresholdDays} days
+                  </p>
+                ) : null}
               </div>
 
               <label className="grid gap-1.5 text-sm font-medium">

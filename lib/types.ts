@@ -54,6 +54,8 @@ export type FeatureRequest = {
   reviewedAt?: string;
   createdAt: string;
   updatedAt: string;
+  voteCount?: number;
+  votedByCurrentUser?: boolean;
 };
 
 export type MaintenanceType = {

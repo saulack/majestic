@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticated } from "@/lib/admin-auth";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type CreateFeatureRequestInput = {
   requestType?: "feature" | "bug";
@@ -15,8 +15,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: auth.message }, { status: 403 });
   }
 
-  const supabase = await createServerSupabaseClient();
-  if (!supabase) {
+  const admin = createAdminClient();
+  if (!admin) {
     return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Description must be at least 10 characters." }, { status: 400 });
   }
 
-  const { error } = await supabase.from("feature_requests").insert({
+  const { error } = await admin.from("feature_requests").insert({
     requested_by: auth.userId,
     request_type: requestType,
     title,

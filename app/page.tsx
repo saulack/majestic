@@ -2,6 +2,7 @@ import Link from "next/link";
 import { compareAsc, format, parseISO } from "date-fns";
 import { AppShell } from "@/components/app-shell";
 import { HomeMaintenanceStatus } from "@/components/home-maintenance-status";
+import { UpcomingReservationsList } from "@/components/upcoming-reservations-list";
 import { getAllReservations, getAuthenticatedUserProfile, getMaintenanceSummaries } from "@/lib/live-data";
 import { getNumberAppSetting } from "@/lib/app-settings";
 import { getReservationApprovalsEnabled, HOMEPAGE_RESERVATIONS_COUNT_KEY } from "@/lib/feature-flags";
@@ -40,8 +41,7 @@ export default async function HomePage() {
 
   const upcomingReservations = [...normalizedReservations]
     .filter((reservation) => compareAsc(parseISO(reservation.startDate), new Date()) >= 0)
-    .sort((left, right) => compareAsc(parseISO(left.startDate), parseISO(right.startDate)))
-    .slice(0, upcomingReservationCount);
+    .sort((left, right) => compareAsc(parseISO(left.startDate), parseISO(right.startDate)));
   const myReservations = normalizedReservations.filter((reservation) => reservation.userId === actingUser.id);
   const myNextStay = myReservations
     .filter((reservation) => compareAsc(parseISO(reservation.startDate), new Date()) >= 0)
@@ -105,30 +105,7 @@ export default async function HomePage() {
           <p className="text-sm text-slate-500">Showing the next reservations configured by admin.</p>
         </div>
 
-        <div className="mt-5 grid gap-3">
-          {upcomingReservations.length > 0 ? (
-            upcomingReservations.map((reservation) => (
-              <article key={reservation.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3.5 sm:px-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-base font-semibold text-slate-900">{reservation.userName}</h4>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {format(parseISO(reservation.startDate), "MMM d, yyyy")} to {format(parseISO(reservation.endDate), "MMM d, yyyy")}
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
-                    {reservation.status}
-                  </span>
-                </div>
-                {reservation.notes ? <p className="mt-2 text-sm text-slate-500">{reservation.notes}</p> : null}
-              </article>
-            ))
-          ) : (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">
-              No upcoming reservations found.
-            </div>
-          )}
-        </div>
+        <UpcomingReservationsList reservations={upcomingReservations} initialVisibleCount={upcomingReservationCount} />
       </section>
     </AppShell>
   );

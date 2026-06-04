@@ -13,11 +13,13 @@ export function StatsClientPage({
   actingUser,
   reservations,
   requests,
+  users,
   previewRole
 }: {
   actingUser: UserProfile;
   reservations: Reservation[];
   requests: FeatureRequest[];
+  users: UserProfile[];
   previewRole: Extract<UserProfile["role"], "admin" | "user"> | null;
 }) {
   const [scope, setScope] = useState<Scope>("currentYear");
@@ -94,6 +96,15 @@ export function StatsClientPage({
       }
     >();
 
+    for (const user of users) {
+      userMap.set(user.id, {
+        name: user.fullName,
+        reservations: 0,
+        featureRequests: 0,
+        bugReports: 0
+      });
+    }
+
     for (const reservation of filteredReservations) {
       const existing = userMap.get(reservation.userId);
       if (existing) {
@@ -133,7 +144,7 @@ export function StatsClientPage({
         totalVolume: entry.reservations + entry.featureRequests + entry.bugReports
       }))
       .sort((a, b) => b.totalVolume - a.totalVolume || a.name.localeCompare(b.name));
-  }, [adminLike, filteredRequests, filteredReservations]);
+  }, [adminLike, filteredRequests, filteredReservations, users]);
 
   return (
     <AppShell initialRole={actingUser.role} initialPreviewRole={previewRole}>

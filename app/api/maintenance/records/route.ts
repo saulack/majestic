@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticated } from "@/lib/admin-auth";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type MaintenanceRecordInput = {
   maintenanceTypeId?: string;
@@ -13,8 +13,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: auth.message }, { status: 403 });
   }
 
-  const supabase = await createServerSupabaseClient();
-  if (!supabase) {
+  const admin = createAdminClient();
+  if (!admin) {
     return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Maintenance type and date are required." }, { status: 400 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from("maintenance_records")
     .insert({
       maintenance_type_id: maintenanceTypeId,
