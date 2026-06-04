@@ -1,0 +1,258 @@
+"use client";
+
+import { format, parseISO } from "date-fns";
+import { useState } from "react";
+import type { Reservation } from "@/lib/types";
+
+type ReservationRow = Reservation;
+
+type ApiResult = {
+  message?: string;
+  error?: string;
+  reservation?: {
+    id: string;
+    userId: string;
+    startDate: string;
+    endDate: string;
+    notes?: string;
+    status: Reservation["status"];
+    declineReason?: string;
+    createdAt: string;
+  };
+  reservationId?: string;
+};
+
+export function ManageReservationsClient({ initialReservations }: { initialReservations: Reservation[] }) {
+  const [reservations, setReservations] = useState<ReservationRow[]>(initialReservations);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState({ startDate: "", endDate: "", notes: "" });
+
+  const sorted = [...reservations].sort((a, b) => b.startDate.localeCompare(a.startDate));
+
+  function startEditing(reservation: ReservationRow) {
+    setEditingId(reservation.id);
+    setStatus("");
+    setDraft({
+      startDate: reservation.startDate,
+      endDate: reservation.endDate,
+      notes: reservation.notes ?? ""
+    });
+  }
+
+  async function saveReservation(reservationId: string) {
+    if (!draft.startDate || !draft.endDate) {
+      setStatus("Start date and end date are required.");
+      return;
+    }
+
+    if (draft.endDate < draft.startDate) {
+      setStatus("End date must be on or after start date.");
+      return;
+    }
+
+    setBusy(true);
+    setStatus("");
+
+    const response = await fetch("/api/reservations/my", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reservationId,
+        startDate: draft.startDate,
+        endDate: draft.endDate,
+        notes: draft.notes
+      })
+    });
+
+    const payload = (await response.json()) as ApiResult;
+    setBusy(false);
+
+    if (!response.ok || !payload.reservation) {
+      setStatus(payload.error ?? "Unable to save reservation.");
+      return;
+    }
+
+    setReservations((current) =>
+      current.map((reservation) =>
+        reservation.id === reservationId
+          ? {
+              ...reservation,
+              startDate: payload.reservation?.startDate ?? reservation.startDate,
+              endDate: payload.reservation?.endDate ?? reservation.endDate,
+              notes: payload.reservation?.notes,
+              status: payload.reservation?.status ?? reservation.status,
+              declineReason: payload.reservation?.declineReason ?? reservation.declineReason
+            }
+          : reservation
+      )
+    );
+
+    setEditingId(null);
+    setStatus(payload.message ?? "Reservation updated.");
+  }
+
+  async function deleteReservation(reservationId: string) {
+    const confirmed = window.confirm("Delete this reservation?");
+    if (!confirmed) {
+      return;
+    }
+
+    setBusy(true);
+    setStatus("");
+
+    const response = await fetch("/api/reservations/my", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reservationId })
+    });
+
+    const payload = (await response.json()) as ApiResult;
+    setBusy(false);
+
+    if (!response.ok) {
+      setStatus(payload.error ?? "Unable to delete reservation.");
+      return;
+    }
+
+    setReservations((current) => current.filter((reservation) => reservation.id !== reservationId));
+    setStatus(payload.message ?? "Reservation deleted.");
+  }
+
+  return (
+    <section className="card p-5 sm:p-6">
+      <h2 className="text-xl sm:text-2xl">Manage Reservations</h2>
+      <p className="mt-2 text-sm text-slate-600">Review your reservations and edit or delete them from this page.</p>
+
+      {status ? <p className="mt-3 text-sm text-slate-700">{status}</p> : null}
+
+      <div className="mt-5 grid gap-3">
+        {sorted.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">
+            You do not have any reservations yet.
+          </div>
+        ) : (
+          sorted.map((reservation) => (
+            <article key={reservation.id} className="rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {format(parseISO(reservation.startDate), "MMM d, yyyy")} to {format(parseISO(reservation.endDate), "MMM d, yyyy")}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">Created {format(parseISO(reservation.createdAt), "MMM d, yyyy")}</p>
+                </div>
+                <span className={statusBadgeClass(reservation.status)}>{formatStatusLabel(reservation.status)}</span>
+              </div>
+
+              {editingId === reservation.id ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <label className="grid gap-1 text-sm">
+                    <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Start date</span>
+                    <input
+                      type="date"
+                      value={draft.startDate}
+                      onChange={(event) => setDraft((current) => ({ ...current, startDate: event.target.value }))}
+                      className="rounded-lg border border-slate-300 px-3 py-2"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-sm">
+                    <span className="text-xs uppercase tracking-[0.12em] text-slate-500">End date</span>
+                    <input
+                      type="date"
+                      value={draft.endDate}
+                      onChange={(event) => setDraft((current) => ({ ...current, endDate: event.target.value }))}
+                      className="rounded-lg border border-slate-300 px-3 py-2"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-sm sm:col-span-3">
+                    <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Notes</span>
+                    <textarea
+                      value={draft.notes}
+                      onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))}
+                      className="min-h-20 rounded-lg border border-slate-300 px-3 py-2"
+                      placeholder="Optional notes"
+                    />
+                  </label>
+
+                  <div className="flex flex-wrap gap-2 sm:col-span-3">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        void saveReservation(reservation.id);
+                      }}
+                      className="rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-60"
+                    >
+                      Save changes
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        setEditingId(null);
+                        setStatus("");
+                      }}
+                      className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {reservation.notes ? <p className="mt-3 text-sm text-slate-600">{reservation.notes}</p> : null}
+                  {reservation.declineReason ? <p className="mt-2 text-sm text-rose-700">Decline reason: {reservation.declineReason}</p> : null}
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => startEditing(reservation)}
+                      className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 disabled:opacity-60"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        void deleteReservation(reservation.id);
+                      }}
+                      className="rounded-lg border border-rose-300 px-4 py-2 text-rose-700 disabled:opacity-60"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </article>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function formatStatusLabel(status: Reservation["status"]): string {
+  switch (status) {
+    case "approved":
+      return "Approved";
+    case "declined":
+      return "Declined";
+    default:
+      return "Pending";
+  }
+}
+
+function statusBadgeClass(status: Reservation["status"]): string {
+  if (status === "approved") {
+    return "rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700";
+  }
+
+  if (status === "declined") {
+    return "rounded-full border border-rose-300 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700";
+  }
+
+  return "rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700";
+}

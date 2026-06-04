@@ -75,7 +75,7 @@ export default async function HomePage() {
           <h3 className="text-lg sm:text-xl">Quick Actions</h3>
           <div className="mt-4 grid gap-3">
             <Action href="/reservations" title="Create reservation" subtitle="Plan your next family stay" />
-            <Action href="/reservations" title={adminLike ? "Manage requests" : "View reservations"} subtitle={adminLike ? "Review approvals, denials, and notes" : "See your stays and booking calendar"} />
+            <Action href="/manage-reservations" title="Manage reservations" subtitle="Edit or delete your reservations" />
             <Action href="/stats" title="View personal stats" subtitle="Track your own stays and nights" />
           </div>
         </div>
