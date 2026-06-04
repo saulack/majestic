@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticated } from "@/lib/admin-auth";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type EmergencyContactInput = {
   title?: string;
@@ -14,12 +14,12 @@ export async function GET() {
     return NextResponse.json({ error: auth.message }, { status: 403 });
   }
 
-  const supabase = await createServerSupabaseClient();
-  if (!supabase) {
+  const admin = createAdminClient();
+  if (!admin) {
     return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from("info_emergency_contacts")
     .select("id,title,name,phone_number")
     .order("title", { ascending: true });
@@ -53,12 +53,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Title, name, and phone number are required." }, { status: 400 });
   }
 
-  const supabase = await createServerSupabaseClient();
-  if (!supabase) {
+  const admin = createAdminClient();
+  if (!admin) {
     return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from("info_emergency_contacts")
     .insert({
       title,

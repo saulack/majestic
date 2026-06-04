@@ -5,17 +5,19 @@ import { format, parseISO } from "date-fns";
 import { AppShell } from "@/components/app-shell";
 import { totalDaysInReservation } from "@/lib/reservation-utils";
 import { isAdminLike } from "@/lib/rbac";
-import type { Reservation, UserProfile } from "@/lib/types";
+import type { FeatureRequest, Reservation, UserProfile } from "@/lib/types";
 
 type Scope = "currentYear" | "allTime";
 
 export function StatsClientPage({
   actingUser,
   reservations,
+  requests,
   previewRole
 }: {
   actingUser: UserProfile;
   reservations: Reservation[];
+  requests: FeatureRequest[];
   previewRole: Extract<UserProfile["role"], "admin" | "user"> | null;
 }) {
   const [scope, setScope] = useState<Scope>("currentYear");
@@ -32,11 +34,80 @@ export function StatsClientPage({
     return base.filter((reservation) => parseISO(reservation.startDate).getFullYear() === currentYear);
   }, [actingUser.id, adminLike, currentYear, reservations, scope]);
 
+  const filteredRequests = useMemo(() => {
+    const base = adminLike ? requests : requests.filter((request) => request.requestedByUserId === actingUser.id);
+
+    if (scope === "allTime") {
+      return base;
+    }
+
+    return base.filter((request) => parseISO(request.createdAt).getFullYear() === currentYear);
+  }, [actingUser.id, adminLike, currentYear, requests, scope]);
+
   const canceledReservations = filteredReservations.filter((reservation) => reservation.status === "declined");
   const reservedDays = filteredReservations
     .filter((reservation) => reservation.status === "approved")
     .reduce((sum, reservation) => sum + totalDaysInReservation(reservation), 0);
   const pendingReservations = filteredReservations.filter((reservation) => reservation.status === "pending");
+  const featureRequests = filteredRequests.filter((request) => request.requestType === "feature");
+  const bugReports = filteredRequests.filter((request) => request.requestType === "bug");
+  const totalVolume = filteredReservations.length + filteredRequests.length;
+
+  const perUserRows = useMemo(() => {
+    if (!adminLike) {
+      return [];
+    }
+
+    const userMap = new Map<
+      string,
+      {
+        name: string;
+        reservations: number;
+        featureRequests: number;
+        bugReports: number;
+      }
+    >();
+
+    for (const reservation of filteredReservations) {
+      const existing = userMap.get(reservation.userId);
+      if (existing) {
+        existing.reservations += 1;
+      } else {
+        userMap.set(reservation.userId, {
+          name: reservation.userName,
+          reservations: 1,
+          featureRequests: 0,
+          bugReports: 0
+        });
+      }
+    }
+
+    for (const request of filteredRequests) {
+      const existing = userMap.get(request.requestedByUserId);
+      if (existing) {
+        if (request.requestType === "feature") {
+          existing.featureRequests += 1;
+        } else {
+          existing.bugReports += 1;
+        }
+      } else {
+        userMap.set(request.requestedByUserId, {
+          name: request.requestedByName,
+          reservations: 0,
+          featureRequests: request.requestType === "feature" ? 1 : 0,
+          bugReports: request.requestType === "bug" ? 1 : 0
+        });
+      }
+    }
+
+    return [...userMap.entries()]
+      .map(([userId, entry]) => ({
+        userId,
+        ...entry,
+        totalVolume: entry.reservations + entry.featureRequests + entry.bugReports
+      }))
+      .sort((a, b) => b.totalVolume - a.totalVolume || a.name.localeCompare(b.name));
+  }, [adminLike, filteredRequests, filteredReservations]);
 
   return (
     <AppShell initialRole={actingUser.role} initialPreviewRole={previewRole}>
@@ -46,8 +117,8 @@ export function StatsClientPage({
             <h2 className="text-xl sm:text-2xl">{adminLike ? "Reservation Overview" : "My Reservation Stats"}</h2>
             <p className="mt-1 text-sm leading-relaxed text-slate-600">
               {adminLike
-                ? "Previewing the higher-level reservation picture with totals, pending requests, and recent activity."
-                : "Personal stats only: total reservations, total days reserved, and total canceled reservations."}
+                ? "High-level activity view including reservations, feature requests, and bug reports across users."
+                : "Personal activity stats including reservations, feature requests, and bug reports."}
             </p>
           </div>
 
@@ -69,11 +140,50 @@ export function StatsClientPage({
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <StatTile label="Total volume" value={totalVolume} />
           <StatTile label={adminLike ? "Visible reservations" : "Reservations"} value={filteredReservations.length} />
-          <StatTile label={adminLike ? "Pending requests" : "Days reserved"} value={adminLike ? pendingReservations.length : reservedDays} accent="copper" />
+          <StatTile label="Feature requests" value={featureRequests.length} accent="copper" />
+          <StatTile label="Bug reports" value={bugReports.length} accent="rose" />
+          <StatTile label={adminLike ? "Pending reservations" : "Days reserved"} value={adminLike ? pendingReservations.length : reservedDays} accent="copper" />
           <StatTile label="Canceled reservations" value={canceledReservations.length} accent="rose" />
         </div>
+
+        {adminLike ? (
+          <div className="mt-6">
+            <h3 className="mb-3 text-base font-semibold">
+              Per-user volume ({scope === "currentYear" ? String(currentYear) : "all time"})
+            </h3>
+            {perUserRows.length === 0 ? (
+              <p className="text-sm text-slate-500">No user activity found for this period.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.08em] text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2.5">User</th>
+                      <th className="px-3 py-2.5">Total volume</th>
+                      <th className="px-3 py-2.5">Reservations</th>
+                      <th className="px-3 py-2.5">Feature requests</th>
+                      <th className="px-3 py-2.5">Bug reports</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {perUserRows.map((row) => (
+                      <tr key={row.userId} className="border-b border-slate-100 last:border-b-0">
+                        <td className="px-3 py-2.5 font-medium text-slate-800">{row.name}</td>
+                        <td className="px-3 py-2.5 text-slate-700">{row.totalVolume}</td>
+                        <td className="px-3 py-2.5 text-slate-700">{row.reservations}</td>
+                        <td className="px-3 py-2.5 text-slate-700">{row.featureRequests}</td>
+                        <td className="px-3 py-2.5 text-slate-700">{row.bugReports}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {filteredReservations.length > 0 ? (
           <div className="mt-6">

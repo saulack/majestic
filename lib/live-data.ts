@@ -608,6 +608,56 @@ export async function getQueuedFeatureRequests(requestType?: FeatureRequestType)
   );
 }
 
+export async function getAllFeatureRequests(): Promise<FeatureRequest[]> {
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("feature_requests")
+    .select(`
+      id,
+      requested_by,
+      request_type,
+      title,
+      description,
+      status,
+      status_email_opt_in,
+      reviewed_by,
+      reviewed_at,
+      created_at,
+      updated_at,
+      requester:profiles!feature_requests_requested_by_fkey(full_name,email),
+      reviewer:profiles!feature_requests_reviewed_by_fkey(full_name)
+    `)
+    .order("created_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((entry) =>
+    mapFeatureRequestRow(
+      entry as {
+        id: string;
+        requested_by: string;
+        request_type: "feature" | "bug";
+        title: string;
+        description: string;
+        status: "pending" | "in_progress" | "declined" | "completed" | "rejected";
+        status_email_opt_in: boolean;
+        reviewed_by: string | null;
+        reviewed_at: string | null;
+        created_at: string;
+        updated_at: string;
+        requester: unknown;
+        reviewer: unknown;
+      }
+    )
+  );
+}
+
 export async function getMaintenanceNotifications(): Promise<MaintenanceNotification[]> {
   const supabase = await createServerSupabaseClient();
   if (!supabase) {

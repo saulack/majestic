@@ -125,8 +125,8 @@ export function EmergencyContactsManager({ initialContacts = defaultEmergencyCon
       {message ? <p className="mt-3 text-sm text-slate-600">{message}</p> : null}
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
-          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-[#f2fbf8] p-5 shadow-2xl sm:p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-xl font-semibold">Add emergency contact</h3>

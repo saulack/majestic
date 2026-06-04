@@ -4,7 +4,7 @@ import { AccessCodesManager, type AccessCode } from "@/app/info/access-codes-man
 import { CheckoutChecklistManager, type ChecklistItem } from "@/app/info/checkout-checklist-manager";
 import { ContactsManager, type Contact } from "@/app/info/contacts-manager";
 import { EmergencyContactsManager, type EmergencyContact } from "@/app/info/emergency-contacts-manager";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthenticatedUserProfile } from "@/lib/live-data";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
@@ -20,7 +20,7 @@ export default async function InfoPage() {
   }
 
   const actingUser = getEffectiveUser(profile, previewRole);
-  const supabase = await createServerSupabaseClient();
+  const supabase = createAdminClient();
   let contacts: Contact[] = [];
   let accessCodes: AccessCode[] = [];
   let emergencyContacts: EmergencyContact[] = [];

@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { StatsClientPage } from "@/app/stats/stats-client";
-import { getAllReservations, getAuthenticatedUserProfile } from "@/lib/live-data";
+import { getAllFeatureRequests, getAllReservations, getAuthenticatedUserProfile } from "@/lib/live-data";
 import { redirect } from "next/navigation";
 import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
 
@@ -14,7 +14,7 @@ export default async function StatsPage() {
   }
 
   const actingUser = getEffectiveUser(profile, previewRole);
-  const reservations = await getAllReservations();
+  const [reservations, requests] = await Promise.all([getAllReservations(), getAllFeatureRequests()]);
 
-  return <StatsClientPage actingUser={actingUser} reservations={reservations} previewRole={previewRole} />;
+  return <StatsClientPage actingUser={actingUser} reservations={reservations} requests={requests} previewRole={previewRole} />;
 }

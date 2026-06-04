@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { requireAuthenticated } from "@/lib/admin-auth";
 import { getAuthenticatedUserProfile } from "@/lib/live-data";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type ContactInput = {
   name?: string;
@@ -22,12 +21,12 @@ export async function GET() {
     return NextResponse.json({ error: auth.message }, { status: 403 });
   }
 
-  const supabase = await createServerSupabaseClient();
-  if (!supabase) {
+  const admin = createAdminClient();
+  if (!admin) {
     return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from("info_contacts")
     .select("id,name,number,email,address,role_function,is_staff,is_maintenance,maintenance_category")
     .order("name", { ascending: true });
