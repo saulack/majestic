@@ -6,12 +6,9 @@ import { CalendarDays, ChartColumnBig, Home, ShieldCheck, UserRound, Info, Wrenc
 import { RolePreviewRestore } from "@/components/role-preview-restore";
 import { getEffectiveRole, readRolePreviewFromBrowser } from "@/lib/role-preview";
 import { createClient } from "@/lib/supabase/client";
-import { readLocalAuthSnapshot } from "@/lib/local-auth";
 import type { AppRole } from "@/lib/types";
 
 export function AppShell({ children }: PropsWithChildren) {
-  const [authReady, setAuthReady] = useState(false);
-  const [authenticated, setAuthenticated] = useState(false);
   const [previewRole, setPreviewRole] = useState<Extract<AppRole, "admin" | "user"> | null>(null);
   const [baseRole, setBaseRole] = useState<AppRole>("user");
 
@@ -19,18 +16,14 @@ export function AppShell({ children }: PropsWithChildren) {
 
   useEffect(() => {
     void (async () => {
-      const localAuth = readLocalAuthSnapshot();
       const supabase = createClient();
       setPreviewRole(readRolePreviewFromBrowser());
 
       if (!supabase) {
-        setAuthenticated(localAuth.sessionActive);
-        setAuthReady(true);
         return;
       }
 
       const { data } = await supabase.auth.getUser();
-      setAuthenticated(Boolean(data.user) || localAuth.sessionActive);
 
       if (data.user) {
         const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.user.id).maybeSingle();
@@ -38,28 +31,8 @@ export function AppShell({ children }: PropsWithChildren) {
           setBaseRole(profile.role as AppRole);
         }
       }
-
-      setAuthReady(true);
     })();
   }, []);
-
-  if (!authReady || !authenticated) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_#ffe1bf_0%,_#dff8ee_34%,_#eefbfd_100%)] px-6 text-slate-900">
-        <div className="text-center">
-          <h1 className="font-[var(--font-display)] text-4xl uppercase tracking-[0.22em] sm:text-6xl sm:tracking-[0.28em]">
-            Majestic Family Hub
-          </h1>
-          <Link
-            href="/login"
-            className="mt-8 inline-flex items-center justify-center rounded-full border border-[#6ba3b0]/35 bg-[#70b9cd] px-6 py-3 text-sm font-medium text-white shadow-[0_12px_28px_rgba(92,166,186,0.24)] transition hover:bg-[#59a7bc]"
-          >
-            Log in
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen text-slate-900">
