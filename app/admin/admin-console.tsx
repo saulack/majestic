@@ -41,6 +41,7 @@ export function AdminConsole({
   const [users, setUsers] = useState(initialUsers);
   const [manualInviteStatus, setManualInviteStatus] = useState("");
   const [manualInviteLink, setManualInviteLink] = useState("");
+  const [homepageCountStatus, setHomepageCountStatus] = useState("");
 
   async function postJson(path: string, body: Record<string, string | boolean | number>): Promise<ApiResult> {
     setLoading(true);
@@ -244,7 +245,10 @@ export function AdminConsole({
           className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4"
           onSubmit={(event) => {
             event.preventDefault();
-            void postJson("/api/admin/home-reservations-count", { count: homepageReservationCount });
+            void (async () => {
+              const response = await postJson("/api/admin/home-reservations-count", { count: homepageReservationCount });
+              setHomepageCountStatus(response.error ?? "Homepage reservation count saved successfully.");
+            })();
           }}
         >
           <label className="grid gap-1.5 text-sm font-medium">
@@ -254,7 +258,10 @@ export function AdminConsole({
               min={1}
               max={10}
               value={homepageReservationCount}
-              onChange={(event) => setHomepageReservationCount(Number(event.target.value))}
+              onChange={(event) => {
+                setHomepageReservationCount(Number(event.target.value));
+                setHomepageCountStatus("");
+              }}
               className="w-28 rounded-lg border border-slate-300 px-3 py-2"
             />
           </label>
@@ -262,6 +269,8 @@ export function AdminConsole({
             Save count
           </button>
         </form>
+
+        {homepageCountStatus ? <p className="mt-3 text-sm text-slate-700">{homepageCountStatus}</p> : null}
       </div>
 
       <div className="card p-5 sm:p-6 lg:col-span-2">
