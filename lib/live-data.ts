@@ -12,6 +12,24 @@ import type {
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+function buildFallbackAuthenticatedUser(user: {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+}): UserProfile {
+  const fullName =
+    (typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "") ||
+    (user.email?.split("@")[0] ?? "User");
+
+  return {
+    id: user.id,
+    fullName,
+    email: user.email?.toLowerCase() ?? "",
+    role: "user",
+    forcePasswordReset: false
+  };
+}
+
 export async function getAuthenticatedUserProfile(): Promise<UserProfile | null> {
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
@@ -34,13 +52,14 @@ export async function getAuthenticatedUserProfile(): Promise<UserProfile | null>
     .maybeSingle();
 
   if (profileError) {
-    return null;
+    // If profile read fails, still treat the auth session as valid to avoid login loops.
+    return buildFallbackAuthenticatedUser(user);
   }
 
   if (!profile) {
     const admin = createAdminClient();
     if (!admin) {
-      return null;
+      return buildFallbackAuthenticatedUser(user);
     }
 
     let resolvedRole: "user" | "admin" | "superadmin" = "user";
@@ -74,7 +93,7 @@ export async function getAuthenticatedUserProfile(): Promise<UserProfile | null>
       .single();
 
     if (upsertError || !upsertedProfile) {
-      return null;
+      return buildFallbackAuthenticatedUser(user);
     }
 
     return {
