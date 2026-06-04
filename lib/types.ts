@@ -4,6 +4,7 @@ export type AppRole = "user" | "admin" | "superadmin";
 
 export type ReservationStatus = "pending" | "approved" | "declined";
 export type FeatureRequestStatus = "pending" | "in_progress" | "declined" | "completed" | "rejected";
+export type FeatureRequestType = "feature" | "bug";
 
 export type UserProfile = {
   id: string;
@@ -42,6 +43,7 @@ export type FeatureRequest = {
   requestedByUserId: string;
   requestedByName: string;
   requestedByEmail: string;
+  requestType: FeatureRequestType;
   title: string;
   description: string;
   status: FeatureRequestStatus;

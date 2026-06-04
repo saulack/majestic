@@ -3,6 +3,7 @@ import { requireAuthenticated } from "@/lib/admin-auth";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type CreateFeatureRequestInput = {
+  requestType?: "feature" | "bug";
   title?: string;
   description?: string;
   statusEmailOptIn?: boolean;
@@ -20,9 +21,14 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as CreateFeatureRequestInput;
+  const requestType = body.requestType;
   const title = (body.title ?? "").trim();
   const description = (body.description ?? "").trim();
   const statusEmailOptIn = Boolean(body.statusEmailOptIn);
+
+  if (requestType !== "feature" && requestType !== "bug") {
+    return NextResponse.json({ error: "Please select either feature request or bug report." }, { status: 400 });
+  }
 
   if (title.length < 3) {
     return NextResponse.json({ error: "Title must be at least 3 characters." }, { status: 400 });
@@ -34,6 +40,7 @@ export async function POST(request: Request) {
 
   const { error } = await supabase.from("feature_requests").insert({
     requested_by: auth.userId,
+    request_type: requestType,
     title,
     description,
     status_email_opt_in: statusEmailOptIn
@@ -45,6 +52,6 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     mode: "live",
-    message: "Feature request submitted and marked as pending."
+    message: requestType === "bug" ? "Bug report submitted and marked as pending." : "Feature request submitted and marked as pending."
   });
 }

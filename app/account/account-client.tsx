@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Moon, Sun } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BiometricAuthManager } from "@/app/account/biometric-auth-manager";
 import { PasswordManager } from "@/app/account/password-manager";
+import { ToggleSwitch } from "@/components/toggle-switch";
 import { createClient } from "@/lib/supabase/client";
 import type { AppRole, NotificationPreference, UserProfile } from "@/lib/types";
 
@@ -32,8 +34,28 @@ export function AccountClientPage({
   const [reservationBookedByOtherEmail, setReservationBookedByOtherEmail] = useState(
     preferences?.reservationBookedByOtherEmail ?? false
   );
+  const [darkModeEnabled, setDarkModeEnabled] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.localStorage.getItem("majestic-theme") === "dark";
+  });
   const emailEnabled = preferences?.channels.includes("email") ?? false;
   const smsEnabled = preferences?.channels.includes("sms") ?? false;
+
+  useEffect(() => {
+    const root = document.documentElement;
+
+    if (darkModeEnabled) {
+      root.setAttribute("data-theme", "dark");
+      window.localStorage.setItem("majestic-theme", "dark");
+      return;
+    }
+
+    root.removeAttribute("data-theme");
+    window.localStorage.setItem("majestic-theme", "light");
+  }, [darkModeEnabled]);
 
   async function handleLogout() {
     setLogoutBusy(true);
@@ -151,6 +173,24 @@ export function AccountClientPage({
               </div>
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
                 Under construction. Email and SMS delivery options will connect once the services are set up.
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <p className="text-sm font-medium text-slate-800">Theme preference</p>
+                <p className="mt-1 text-xs text-slate-500">Switch between light and dark mode. Your choice is saved on this device.</p>
+                <div className="mt-3">
+                  <ToggleSwitch
+                    checked={darkModeEnabled}
+                    onCheckedChange={setDarkModeEnabled}
+                    srLabel="Toggle dark mode"
+                    offLabel=""
+                    onLabel=""
+                  />
+                </div>
+                <div className="mt-2 flex items-center gap-4 text-xs text-slate-600">
+                  <span className="inline-flex items-center gap-1"><Sun className="h-3.5 w-3.5" /> Light</span>
+                  <span className="inline-flex items-center gap-1"><Moon className="h-3.5 w-3.5" /> Dark</span>
+                </div>
               </div>
 
               <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">

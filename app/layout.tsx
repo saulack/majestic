@@ -21,6 +21,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var theme=localStorage.getItem('majestic-theme');if(theme==='dark'){document.documentElement.setAttribute('data-theme','dark');}}catch(_e){}})();"
+          }}
+        />
+      </head>
       <body className={`${bodyFont.variable} ${displayFont.variable}`}>{children}</body>
     </html>
   );

@@ -11,13 +11,22 @@ type ApiResult = {
 
 export function FeatureRequestsClient({ requests }: { requests: FeatureRequest[] }) {
   const router = useRouter();
+  const [requestType, setRequestType] = useState<"feature" | "bug" | "">("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [statusEmailOptIn, setStatusEmailOptIn] = useState(true);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
 
+  const featureRequests = requests.filter((request) => request.requestType === "feature");
+  const bugReports = requests.filter((request) => request.requestType === "bug");
+
   async function submitRequest() {
+    if (!requestType) {
+      setStatus("Please choose whether this is a feature request or a bug report.");
+      return;
+    }
+
     setBusy(true);
     setStatus("");
 
@@ -25,6 +34,7 @@ export function FeatureRequestsClient({ requests }: { requests: FeatureRequest[]
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        requestType,
         title,
         description,
         statusEmailOptIn
@@ -41,16 +51,17 @@ export function FeatureRequestsClient({ requests }: { requests: FeatureRequest[]
 
     setTitle("");
     setDescription("");
-    setStatus(payload.message ?? "Feature request submitted.");
+    setRequestType("");
+    setStatus(payload.message ?? "Request submitted.");
     router.refresh();
   }
 
   return (
     <section className="grid gap-5 sm:gap-6 lg:grid-cols-[1.2fr_1fr]">
       <div className="card p-5 sm:p-6">
-        <h2 className="text-xl sm:text-2xl">Feature Requests</h2>
+        <h2 className="text-xl sm:text-2xl">Requests & Bug Reports</h2>
         <p className="mt-2 text-sm text-slate-600">
-          Share ideas for improvements. Every request starts as pending until reviewed by superadmin.
+          Submit product ideas or bug reports. Every item starts as pending until reviewed by superadmin.
         </p>
 
         <form
@@ -60,6 +71,28 @@ export function FeatureRequestsClient({ requests }: { requests: FeatureRequest[]
             void submitRequest();
           }}
         >
+          <fieldset className="grid gap-2 rounded-lg border border-slate-200 bg-white px-3 py-3">
+            <legend className="px-1 text-xs uppercase tracking-[0.12em] text-slate-500">Type</legend>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="radio"
+                name="requestType"
+                checked={requestType === "feature"}
+                onChange={() => setRequestType("feature")}
+              />
+              Feature request
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="radio"
+                name="requestType"
+                checked={requestType === "bug"}
+                onChange={() => setRequestType("bug")}
+              />
+              Bug report
+            </label>
+          </fieldset>
+
           <label className="grid gap-1.5 text-sm font-medium">
             <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Title</span>
             <input
@@ -113,26 +146,52 @@ export function FeatureRequestsClient({ requests }: { requests: FeatureRequest[]
         <h3 className="text-lg sm:text-xl">My Requests</h3>
         <p className="mt-2 text-sm text-slate-600">Track current status for each request.</p>
 
-        <div className="mt-4 grid gap-3">
-          {requests.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-              You have not submitted any feature requests yet.
-            </div>
-          ) : (
-            requests.map((request) => (
-              <article key={request.id} className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <h4 className="text-sm font-semibold text-slate-900">{request.title}</h4>
-                  <span className={statusBadgeClass(request.status)}>{formatStatusLabel(request.status)}</span>
+        <div className="mt-4 grid gap-4">
+          <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <h4 className="text-sm font-semibold text-slate-800">Feature Requests</h4>
+            <div className="mt-2 grid gap-3">
+              {featureRequests.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-4 text-sm text-slate-500">
+                  You have not submitted any feature requests yet.
                 </div>
-                <p className="mt-2 text-sm text-slate-600">{request.description}</p>
-                <p className="mt-2 text-xs text-slate-500">Requested on {new Date(request.createdAt).toLocaleDateString()}</p>
-              </article>
-            ))
-          )}
+              ) : (
+                featureRequests.map((request) => (
+                  <RequestCard key={request.id} request={request} />
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <h4 className="text-sm font-semibold text-slate-800">Bug Reports</h4>
+            <div className="mt-2 grid gap-3">
+              {bugReports.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-4 text-sm text-slate-500">
+                  You have not submitted any bug reports yet.
+                </div>
+              ) : (
+                bugReports.map((request) => (
+                  <RequestCard key={request.id} request={request} />
+                ))
+              )}
+            </div>
+          </section>
         </div>
       </div>
     </section>
+  );
+}
+
+function RequestCard({ request }: { request: FeatureRequest }) {
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <h4 className="text-sm font-semibold text-slate-900">{request.title}</h4>
+        <span className={statusBadgeClass(request.status)}>{formatStatusLabel(request.status)}</span>
+      </div>
+      <p className="mt-2 text-sm text-slate-600">{request.description}</p>
+      <p className="mt-2 text-xs text-slate-500">Requested on {new Date(request.createdAt).toLocaleDateString()}</p>
+    </article>
   );
 }
 

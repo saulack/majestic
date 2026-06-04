@@ -35,10 +35,11 @@ export default async function AdminPage() {
   const approvalsEnabled = await getReservationApprovalsEnabled();
   const homepageReservationCount = await getNumberAppSetting(HOMEPAGE_RESERVATIONS_COUNT_KEY, DEFAULT_HOME_RESERVATION_COUNT);
   const admin = createAdminClient();
-  const [maintenanceTypes, pendingThresholdApprovals, pendingFeatureRequests] = await Promise.all([
+  const [maintenanceTypes, pendingThresholdApprovals, pendingFeatureRequests, pendingBugReports] = await Promise.all([
     getMaintenanceTypes(),
     getPendingMaintenanceThresholdApprovals(),
-    getPendingFeatureRequests()
+    getPendingFeatureRequests("feature"),
+    getPendingFeatureRequests("bug")
   ]);
   let users: UserProfile[] = [];
 
@@ -81,6 +82,7 @@ export default async function AdminPage() {
           initialMaintenanceTypes={maintenanceTypes}
           initialThresholdApprovals={pendingThresholdApprovals}
           initialPendingFeatureRequests={pendingFeatureRequests}
+          initialPendingBugReports={pendingBugReports}
           initialUsers={users}
           currentUserId={profile.id}
         />

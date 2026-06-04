@@ -14,6 +14,7 @@ export function AppShell({
 }: PropsWithChildren<{ initialRole?: AppRole; initialPreviewRole?: Extract<AppRole, "admin" | "user"> | null }>) {
   const previewRole = initialPreviewRole ?? null;
   const effectiveRole = getEffectiveRole(initialRole ?? "user", previewRole);
+  const showSuperadminMenu = effectiveRole === "superadmin";
 
   return (
     <div className="min-h-screen text-slate-900">
@@ -25,34 +26,57 @@ export function AppShell({
         <nav className="no-scrollbar flex w-full snap-x gap-1 overflow-x-auto rounded-lg border border-[#bde3df] bg-[#f4fbfa]/96 p-1.5 shadow-[0_12px_28px_rgba(90,154,175,0.16)] backdrop-blur md:w-auto">
           <NavItem href="/" label="Home" icon={<Home className="h-4 w-4" />} />
           <NavItem href="/reservations" label="Reservations" icon={<CalendarDays className="h-4 w-4" />} />
-          <NavItem href="/feature-requests" label="Requests" icon={<Lightbulb className="h-4 w-4" />} />
+          {!showSuperadminMenu ? <NavItem href="/feature-requests" label="Requests" icon={<Lightbulb className="h-4 w-4" />} /> : null}
           <NavItem href="/stats" label="Stats" icon={<ChartColumnBig className="h-4 w-4" />} />
           <NavItem href="/maintenance" label="Maintenance" icon={<Wrench className="h-4 w-4" />} />
           <NavItem href="/info" label="Info" icon={<Info className="h-4 w-4" />} />
           <NavItem href="/account" label="Account" icon={<UserRound className="h-4 w-4" />} />
-          {effectiveRole === "superadmin" ? <NavItem href="/feature-queue" label="Queue" icon={<ListTodo className="h-4 w-4" />} iconOnly /> : null}
-          {effectiveRole === "superadmin" ? <NavItem href="/admin" label="Admin" icon={<ShieldCheck className="h-4 w-4" />} iconOnly /> : null}
         </nav>
       </header>
-      <main className="mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6 sm:pb-16">{children}</main>
+      <div
+        className={[
+          "mx-auto grid w-full max-w-6xl gap-4 px-4 pb-12 sm:px-6 sm:pb-16",
+          showSuperadminMenu ? "lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start" : ""
+        ].join(" ")}
+      >
+        <main>{children}</main>
+
+        {showSuperadminMenu ? (
+          <aside className="card card-strong border-[#bde3df] p-3 lg:sticky lg:top-6">
+            <p className="px-2 pb-2 pt-1 text-[11px] uppercase tracking-[0.16em] text-[#2f7b84]">Superadmin</p>
+            <div className="grid gap-1.5">
+              <SuperadminNavItem href="/admin" label="Admin Console" icon={<ShieldCheck className="h-4 w-4" />} />
+              <SuperadminNavItem href="/feature-queue" label="Request Queue" icon={<ListTodo className="h-4 w-4" />} />
+            </div>
+          </aside>
+        ) : null}
+      </div>
+
       <RolePreviewRestore previewRole={previewRole} />
     </div>
   );
 }
 
-function NavItem({ href, label, icon, iconOnly = false }: { href: string; label: string; icon: React.ReactNode; iconOnly?: boolean }) {
+function NavItem({ href, label, icon }: { href: string; label: string; icon: React.ReactNode }) {
   return (
     <Link
       href={href}
-      title={iconOnly ? label : undefined}
-      aria-label={iconOnly ? label : undefined}
-      className={[
-        "inline-flex shrink-0 snap-start items-center gap-2 rounded-md py-2 text-xs font-medium text-[#3c6f78] transition hover:bg-[#dbf2ef] hover:text-[#23484f] sm:text-sm",
-        iconOnly ? "px-2.5 sm:px-2.5" : "px-3 sm:px-4"
-      ].join(" ")}
+      className="inline-flex shrink-0 snap-start items-center gap-2 rounded-md px-3 py-2 text-xs font-medium text-[#3c6f78] transition hover:bg-[#dbf2ef] hover:text-[#23484f] sm:px-4 sm:text-sm"
     >
       {icon}
-      {iconOnly ? <span className="sr-only">{label}</span> : <span className="inline">{label}</span>}
+      <span className="inline">{label}</span>
+    </Link>
+  );
+}
+
+function SuperadminNavItem({ href, label, icon }: { href: string; label: string; icon: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center gap-2 rounded-md border border-[#bde3df] bg-[#f7fcfa] px-3 py-2 text-sm font-medium text-[#2f6b74] transition hover:bg-[#e2f5f2] hover:text-[#214a52]"
+    >
+      {icon}
+      <span>{label}</span>
     </Link>
   );
 }

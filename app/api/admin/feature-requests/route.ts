@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 
   const { data: requestRow, error: requestError } = await admin
     .from("feature_requests")
-    .select("id,status,title")
+    .select("id,status,title,request_type")
     .eq("id", requestId)
     .single();
 
@@ -58,9 +58,10 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     mode: "live",
+    messagePrefix: requestRow.request_type === "bug" ? "Bug report" : "Feature request",
     message:
       action === "queue"
-        ? `Feature request \"${requestRow.title}\" moved to queue.`
-        : `Feature request \"${requestRow.title}\" was declined.`
+        ? `${requestRow.request_type === "bug" ? "Bug report" : "Feature request"} \"${requestRow.title}\" moved to queue.`
+        : `${requestRow.request_type === "bug" ? "Bug report" : "Feature request"} \"${requestRow.title}\" was declined.`
   });
 }

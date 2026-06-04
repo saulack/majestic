@@ -21,6 +21,7 @@ export function AdminConsole({
   initialMaintenanceTypes,
   initialThresholdApprovals,
   initialPendingFeatureRequests,
+  initialPendingBugReports,
   initialUsers,
   currentUserId
 }: {
@@ -29,6 +30,7 @@ export function AdminConsole({
   initialMaintenanceTypes: MaintenanceType[];
   initialThresholdApprovals: MaintenanceThresholdApproval[];
   initialPendingFeatureRequests: FeatureRequest[];
+  initialPendingBugReports: FeatureRequest[];
   initialUsers: UserProfile[];
   currentUserId: string;
 }) {
@@ -42,6 +44,8 @@ export function AdminConsole({
   const [thresholdApprovalsOpen, setThresholdApprovalsOpen] = useState(false);
   const [pendingFeatureRequests, setPendingFeatureRequests] = useState(initialPendingFeatureRequests);
   const [pendingFeatureRequestsOpen, setPendingFeatureRequestsOpen] = useState(false);
+  const [pendingBugReports, setPendingBugReports] = useState(initialPendingBugReports);
+  const [pendingBugReportsOpen, setPendingBugReportsOpen] = useState(false);
   const [users, setUsers] = useState(initialUsers);
   const [manualInviteStatus, setManualInviteStatus] = useState("");
   const [manualInviteLink, setManualInviteLink] = useState("");
@@ -220,6 +224,91 @@ export function AdminConsole({
                         className="rounded-lg border border-rose-300 px-3 py-2 text-rose-700 disabled:opacity-60"
                       >
                         Decline request
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-slate-700">{request.description}</p>
+                </div>
+              ))
+            )}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="card p-5 sm:p-6 lg:col-span-2">
+        <button
+          type="button"
+          onClick={() => setPendingBugReportsOpen((current) => !current)}
+          className={[
+            "flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition",
+            pendingBugReports.length > 0
+              ? "border-rose-300 bg-rose-50 text-rose-800"
+              : "border-slate-200 bg-slate-50 text-slate-800"
+          ].join(" ")}
+        >
+          <div>
+            <p className="text-base font-semibold">Bug Reports</p>
+            <p className="mt-1 text-sm">
+              {pendingBugReports.length > 0
+                ? `${pendingBugReports.length} pending report${pendingBugReports.length === 1 ? "" : "s"}`
+                : "No pending bug reports"}
+            </p>
+          </div>
+          <span className="text-sm font-medium">{pendingBugReportsOpen ? "Hide" : "Show"}</span>
+        </button>
+
+        {pendingBugReportsOpen ? (
+          <div className="mt-4 grid gap-3">
+            {pendingBugReports.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                There are currently no pending bug reports.
+              </div>
+            ) : (
+              pendingBugReports.map((request) => (
+                <div key={request.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{request.title}</p>
+                      <p className="mt-1 text-sm text-slate-600">Reported by {request.requestedByName}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => {
+                          void (async () => {
+                            const response = await postJson("/api/admin/feature-requests", {
+                              requestId: request.id,
+                              action: "queue"
+                            });
+
+                            if (!response.error) {
+                              setPendingBugReports((current) => current.filter((entry) => entry.id !== request.id));
+                            }
+                          })();
+                        }}
+                        className="rounded-lg bg-amber-700 px-3 py-2 text-white disabled:opacity-60"
+                      >
+                        Add to queue
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => {
+                          void (async () => {
+                            const response = await postJson("/api/admin/feature-requests", {
+                              requestId: request.id,
+                              action: "decline"
+                            });
+
+                            if (!response.error) {
+                              setPendingBugReports((current) => current.filter((entry) => entry.id !== request.id));
+                            }
+                          })();
+                        }}
+                        className="rounded-lg border border-rose-300 px-3 py-2 text-rose-700 disabled:opacity-60"
+                      >
+                        Decline report
                       </button>
                     </div>
                   </div>

@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   const { data: requestRow, error: requestError } = await admin
     .from("feature_requests")
     .select(
-      "id,title,status,status_email_opt_in,requester:profiles!feature_requests_requested_by_fkey(full_name,email)"
+      "id,title,status,request_type,status_email_opt_in,requester:profiles!feature_requests_requested_by_fkey(full_name,email)"
     )
     .eq("id", requestId)
     .single();
@@ -65,16 +65,19 @@ export async function POST(request: Request) {
     await sendFeatureRequestStatusEmail({
       email: requester.email,
       fullName: requester.full_name ?? "there",
+      requestType: requestRow.request_type,
       title: requestRow.title,
       status: nextStatus
     });
   }
 
+  const requestLabel = requestRow.request_type === "bug" ? "Bug report" : "Feature request";
+
   return NextResponse.json({
     mode: "live",
     message:
       action === "complete"
-        ? `Feature request \"${requestRow.title}\" marked complete.`
-        : `Feature request \"${requestRow.title}\" marked rejected.`
+        ? `${requestLabel} \"${requestRow.title}\" marked complete.`
+        : `${requestLabel} \"${requestRow.title}\" marked rejected.`
   });
 }

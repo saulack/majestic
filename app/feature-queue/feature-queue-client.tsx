@@ -13,6 +13,8 @@ export function FeatureQueueClient({ requests }: { requests: FeatureRequest[] })
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
+  const featureRequests = requests.filter((request) => request.requestType === "feature");
+  const bugReports = requests.filter((request) => request.requestType === "bug");
 
   async function updateRequest(requestId: string, action: "complete" | "reject") {
     setBusyId(requestId);
@@ -38,16 +40,36 @@ export function FeatureQueueClient({ requests }: { requests: FeatureRequest[] })
 
   return (
     <section className="card p-5 sm:p-6">
-      <h2 className="text-xl sm:text-2xl">Feature Queue</h2>
-      <p className="mt-2 text-sm text-slate-600">Requests that are currently in progress. Mark each one complete or rejected.</p>
+      <h2 className="text-xl sm:text-2xl">Request Queue</h2>
+      <p className="mt-2 text-sm text-slate-600">Items currently in progress. Mark each one complete or rejected.</p>
 
       {status ? <p className="mt-3 text-sm text-slate-700">{status}</p> : null}
 
-      <div className="mt-5 grid gap-3">
+      <div className="mt-5 grid gap-4">
+        <QueueSection title="Feature Requests" requests={featureRequests} busyId={busyId} updateRequest={updateRequest} />
+        <QueueSection title="Bug Reports" requests={bugReports} busyId={busyId} updateRequest={updateRequest} />
+      </div>
+    </section>
+  );
+}
+
+function QueueSection({
+  title,
+  requests,
+  busyId,
+  updateRequest
+}: {
+  title: string;
+  requests: FeatureRequest[];
+  busyId: string | null;
+  updateRequest: (requestId: string, action: "complete" | "reject") => Promise<void>;
+}) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+      <div className="mt-2 grid gap-3">
         {requests.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-            Queue is empty.
-          </div>
+          <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-5 text-sm text-slate-500">No in-progress items.</div>
         ) : (
           requests.map((request) => (
             <article key={request.id} className="rounded-xl border border-slate-200 bg-white p-4">

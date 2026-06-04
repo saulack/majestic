@@ -1,6 +1,7 @@
 import { buildMaintenanceSummaries } from "@/lib/maintenance";
 import type {
   FeatureRequest,
+  FeatureRequestType,
   MaintenanceThresholdApproval,
   MaintenanceNotification,
   MaintenanceRecord,
@@ -371,6 +372,7 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
 function mapFeatureRequestRow(entry: {
   id: string;
   requested_by: string;
+  request_type: "feature" | "bug";
   title: string;
   description: string;
   status: "pending" | "in_progress" | "declined" | "completed" | "rejected";
@@ -387,6 +389,7 @@ function mapFeatureRequestRow(entry: {
     requestedByUserId: entry.requested_by,
     requestedByName: ((entry.requester as { full_name?: string } | null)?.full_name ?? "Unknown").toString(),
     requestedByEmail: ((entry.requester as { email?: string } | null)?.email ?? "").toString(),
+    requestType: entry.request_type,
     title: entry.title,
     description: entry.description,
     status: entry.status,
@@ -410,6 +413,7 @@ export async function getMyFeatureRequests(userId: string): Promise<FeatureReque
     .select(`
       id,
       requested_by,
+      request_type,
       title,
       description,
       status,
@@ -433,6 +437,7 @@ export async function getMyFeatureRequests(userId: string): Promise<FeatureReque
       entry as {
         id: string;
         requested_by: string;
+        request_type: "feature" | "bug";
         title: string;
         description: string;
         status: "pending" | "in_progress" | "declined" | "completed" | "rejected";
@@ -448,17 +453,18 @@ export async function getMyFeatureRequests(userId: string): Promise<FeatureReque
   );
 }
 
-export async function getPendingFeatureRequests(): Promise<FeatureRequest[]> {
+export async function getPendingFeatureRequests(requestType?: FeatureRequestType): Promise<FeatureRequest[]> {
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
     return [];
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("feature_requests")
     .select(`
       id,
       requested_by,
+      request_type,
       title,
       description,
       status,
@@ -470,8 +476,13 @@ export async function getPendingFeatureRequests(): Promise<FeatureRequest[]> {
       requester:profiles!feature_requests_requested_by_fkey(full_name,email),
       reviewer:profiles!feature_requests_reviewed_by_fkey(full_name)
     `)
-    .eq("status", "pending")
-    .order("created_at", { ascending: false });
+    .eq("status", "pending");
+
+  if (requestType) {
+    query = query.eq("request_type", requestType);
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false });
 
   if (error || !data) {
     return [];
@@ -482,6 +493,7 @@ export async function getPendingFeatureRequests(): Promise<FeatureRequest[]> {
       entry as {
         id: string;
         requested_by: string;
+        request_type: "feature" | "bug";
         title: string;
         description: string;
         status: "pending" | "in_progress" | "declined" | "completed" | "rejected";
@@ -497,17 +509,18 @@ export async function getPendingFeatureRequests(): Promise<FeatureRequest[]> {
   );
 }
 
-export async function getQueuedFeatureRequests(): Promise<FeatureRequest[]> {
+export async function getQueuedFeatureRequests(requestType?: FeatureRequestType): Promise<FeatureRequest[]> {
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
     return [];
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("feature_requests")
     .select(`
       id,
       requested_by,
+      request_type,
       title,
       description,
       status,
@@ -519,8 +532,13 @@ export async function getQueuedFeatureRequests(): Promise<FeatureRequest[]> {
       requester:profiles!feature_requests_requested_by_fkey(full_name,email),
       reviewer:profiles!feature_requests_reviewed_by_fkey(full_name)
     `)
-    .eq("status", "in_progress")
-    .order("updated_at", { ascending: false });
+    .eq("status", "in_progress");
+
+  if (requestType) {
+    query = query.eq("request_type", requestType);
+  }
+
+  const { data, error } = await query.order("updated_at", { ascending: false });
 
   if (error || !data) {
     return [];
@@ -531,6 +549,7 @@ export async function getQueuedFeatureRequests(): Promise<FeatureRequest[]> {
       entry as {
         id: string;
         requested_by: string;
+        request_type: "feature" | "bug";
         title: string;
         description: string;
         status: "pending" | "in_progress" | "declined" | "completed" | "rejected";
