@@ -18,7 +18,7 @@ export default async function MaintenancePage() {
   const actingUser = getEffectiveUser(profile, previewRole);
 
   return (
-    <AppShell>
+    <AppShell initialRole={actingUser.role}>
       <MaintenanceClientPage actingUser={actingUser} maintenanceTypes={maintenanceTypes} initialRecords={maintenanceRecords} />
     </AppShell>
   );

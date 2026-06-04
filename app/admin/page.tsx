@@ -51,7 +51,7 @@ export default async function AdminPage() {
   }
 
   return (
-    <AppShell>
+    <AppShell initialRole={effectiveUser.role}>
       <section className="card mb-6 overflow-hidden p-0">
         <div className="bg-gradient-to-r from-[#65c2c0] via-[#7ac9dd] to-[#f7d89f] px-6 py-7 text-white">
           <p className="text-xs uppercase tracking-[0.3em] text-[#eefdf8]">Security</p>

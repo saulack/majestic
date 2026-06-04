@@ -5,8 +5,21 @@ import { CheckoutChecklistManager, type ChecklistItem } from "@/app/info/checkou
 import { ContactsManager, type Contact } from "@/app/info/contacts-manager";
 import { EmergencyContactsManager, type EmergencyContact } from "@/app/info/emergency-contacts-manager";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getAuthenticatedUserProfile } from "@/lib/live-data";
+import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
 
 export default async function InfoPage() {
+  const cookieStore = await cookies();
+  const previewRole = getRolePreviewFromCookieValue(cookieStore.get("majestic-role-preview")?.value ?? null);
+  const profile = await getAuthenticatedUserProfile();
+
+  if (!profile) {
+    redirect("/login");
+  }
+
+  const actingUser = getEffectiveUser(profile, previewRole);
   const supabase = await createServerSupabaseClient();
   let contacts: Contact[] = [];
   let accessCodes: AccessCode[] = [];
@@ -52,7 +65,7 @@ export default async function InfoPage() {
   }
 
   return (
-    <AppShell>
+    <AppShell initialRole={actingUser.role}>
       <section className="card p-6">
         <h2 className="text-2xl">Apartment Information</h2>
         <p className="mt-2 text-sm text-slate-600">

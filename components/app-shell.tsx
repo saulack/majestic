@@ -1,38 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type PropsWithChildren } from "react";
+import { useState, type PropsWithChildren } from "react";
 import { CalendarDays, ChartColumnBig, Home, ShieldCheck, UserRound, Info, Wrench } from "lucide-react";
 import { RolePreviewRestore } from "@/components/role-preview-restore";
 import { getEffectiveRole, readRolePreviewFromBrowser } from "@/lib/role-preview";
-import { createClient } from "@/lib/supabase/client";
 import type { AppRole } from "@/lib/types";
 
-export function AppShell({ children }: PropsWithChildren) {
-  const [previewRole, setPreviewRole] = useState<Extract<AppRole, "admin" | "user"> | null>(null);
-  const [baseRole, setBaseRole] = useState<AppRole>("user");
+export function AppShell({ children, initialRole }: PropsWithChildren<{ initialRole?: AppRole }>) {
+  const [previewRole] = useState<Extract<AppRole, "admin" | "user"> | null>(() => readRolePreviewFromBrowser());
+  const [baseRole] = useState<AppRole>(initialRole ?? "user");
 
   const effectiveRole = getEffectiveRole(baseRole, previewRole);
-
-  useEffect(() => {
-    void (async () => {
-      const supabase = createClient();
-      setPreviewRole(readRolePreviewFromBrowser());
-
-      if (!supabase) {
-        return;
-      }
-
-      const { data } = await supabase.auth.getUser();
-
-      if (data.user) {
-        const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.user.id).maybeSingle();
-        if (profile?.role) {
-          setBaseRole(profile.role as AppRole);
-        }
-      }
-    })();
-  }, []);
 
   return (
     <div className="min-h-screen text-slate-900">

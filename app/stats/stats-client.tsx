@@ -31,7 +31,7 @@ export function StatsClientPage({ actingUser, reservations }: { actingUser: User
   const pendingReservations = filteredReservations.filter((reservation) => reservation.status === "pending");
 
   return (
-    <AppShell>
+    <AppShell initialRole={actingUser.role}>
       <section className="card p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
