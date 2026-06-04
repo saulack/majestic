@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getAuthenticatedUserProfile } from "@/lib/live-data";
 
 export async function requireAuthenticated(): Promise<{ ok: true; userId: string } | { ok: false; message: string }> {
   const supabase = await createServerSupabaseClient();
@@ -35,13 +36,9 @@ export async function requireSuperadmin(): Promise<{ ok: true; userId: string } 
     return { ok: false, message: "You must be authenticated." };
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
+  const profile = await getAuthenticatedUserProfile();
 
-  if (profileError || !profile || profile.role !== "superadmin") {
+  if (!profile || profile.role !== "superadmin") {
     return { ok: false, message: "Only superadmin can manage accounts." };
   }
 

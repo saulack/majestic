@@ -59,7 +59,7 @@ export async function getAuthenticatedUserProfile(): Promise<UserProfile | null>
   const admin = createAdminClient();
   const normalizedEmail = user.email?.toLowerCase() ?? "";
   const { data: roleGrant } = admin
-    ? await admin.from("role_grants").select("role").eq("email", normalizedEmail).maybeSingle()
+    ? await admin.from("role_grants").select("role").ilike("email", normalizedEmail).maybeSingle()
     : { data: null };
 
   const grantedRole = roleGrant?.role === "admin" || roleGrant?.role === "superadmin" ? roleGrant.role : null;
