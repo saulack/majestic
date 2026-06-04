@@ -30,8 +30,8 @@ export function AppShell({
           <NavItem href="/maintenance" label="Maintenance" icon={<Wrench className="h-4 w-4" />} />
           <NavItem href="/info" label="Info" icon={<Info className="h-4 w-4" />} />
           <NavItem href="/account" label="Account" icon={<UserRound className="h-4 w-4" />} />
-          {effectiveRole === "superadmin" ? <NavItem href="/feature-queue" label="Queue" icon={<ListTodo className="h-4 w-4" />} /> : null}
-          {effectiveRole === "superadmin" ? <NavItem href="/admin" label="Admin" icon={<ShieldCheck className="h-4 w-4" />} /> : null}
+          {effectiveRole === "superadmin" ? <NavItem href="/feature-queue" label="Queue" icon={<ListTodo className="h-4 w-4" />} iconOnly /> : null}
+          {effectiveRole === "superadmin" ? <NavItem href="/admin" label="Admin" icon={<ShieldCheck className="h-4 w-4" />} iconOnly /> : null}
         </nav>
       </header>
       <main className="mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6 sm:pb-16">{children}</main>
@@ -40,14 +40,19 @@ export function AppShell({
   );
 }
 
-function NavItem({ href, label, icon }: { href: string; label: string; icon: React.ReactNode }) {
+function NavItem({ href, label, icon, iconOnly = false }: { href: string; label: string; icon: React.ReactNode; iconOnly?: boolean }) {
   return (
     <Link
       href={href}
-      className="inline-flex shrink-0 snap-start items-center gap-2 rounded-md px-3 py-2 text-xs font-medium text-[#3c6f78] transition hover:bg-[#dbf2ef] hover:text-[#23484f] sm:px-4 sm:text-sm"
+      title={iconOnly ? label : undefined}
+      aria-label={iconOnly ? label : undefined}
+      className={[
+        "inline-flex shrink-0 snap-start items-center gap-2 rounded-md py-2 text-xs font-medium text-[#3c6f78] transition hover:bg-[#dbf2ef] hover:text-[#23484f] sm:text-sm",
+        iconOnly ? "px-2.5 sm:px-2.5" : "px-3 sm:px-4"
+      ].join(" ")}
     >
       {icon}
-      <span className="inline">{label}</span>
+      {iconOnly ? <span className="sr-only">{label}</span> : <span className="inline">{label}</span>}
     </Link>
   );
 }
