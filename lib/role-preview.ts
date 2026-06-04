@@ -11,8 +11,9 @@ export function getRolePreviewFromCookieValue(cookieValue: string | null | undef
 }
 
 export function getEffectiveRole(baseRole: AppRole, previewRole: Extract<AppRole, "admin" | "user"> | null): AppRole {
-  if (baseRole !== "superadmin") {
-    return baseRole;
+  // Never mask superadmin with preview cookies; this avoids accidental lockout from admin UI.
+  if (baseRole === "superadmin") {
+    return "superadmin";
   }
 
   return previewRole ?? baseRole;
