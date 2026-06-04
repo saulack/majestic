@@ -52,11 +52,6 @@ export async function getAuthenticatedUserProfile(): Promise<UserProfile | null>
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profileError) {
-    // If profile read fails, still treat the auth session as valid to avoid login loops.
-    return buildFallbackAuthenticatedUser(user);
-  }
-
   const admin = createAdminClient();
   const normalizedEmail = user.email?.toLowerCase() ?? "";
   const { data: roleGrant } = admin
@@ -64,6 +59,13 @@ export async function getAuthenticatedUserProfile(): Promise<UserProfile | null>
     : { data: null };
 
   const grantedRole = roleGrant?.role === "admin" || roleGrant?.role === "superadmin" ? roleGrant.role : null;
+
+  if (profileError && !profile) {
+    if (!admin) {
+      const fallback = buildFallbackAuthenticatedUser(user);
+      return grantedRole ? { ...fallback, role: grantedRole } : fallback;
+    }
+  }
 
   if (!profile) {
     if (!admin) {
