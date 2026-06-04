@@ -78,6 +78,7 @@ export function MonthlyReservationsCalendar({
   const [declineTargetId, setDeclineTargetId] = useState<string | null>(null);
   const [declineReasonText, setDeclineReasonText] = useState("");
   const canDeleteAnyReservation = actingUser.role === "superadmin";
+  const canBookForOthers = actingUser.role === "admin" || actingUser.role === "superadmin";
 
   const monthStart = startOfMonth(monthCursor);
   const calendarStart = startOfWeek(monthStart);
@@ -284,31 +285,33 @@ export function MonthlyReservationsCalendar({
         </p>
 
         <div className="mt-4 grid gap-4 text-sm">
-          <div className="grid gap-1.5 sm:col-span-2">
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Reservation for</span>
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-              <div>
-                <p className="text-sm font-medium text-slate-800">{reservationMode === "self" ? "Reserve for me" : "Reserve for someone else"}</p>
-                <p className="text-sm text-slate-500">Switch on when you are booking on behalf of another user.</p>
-              </div>
-              <ToggleSwitch
-                checked={reservationMode === "other"}
-                onCheckedChange={(checked) => {
-                  if (checked) {
-                    setReservationMode("other");
-                    setSelectedUserId(otherUsers[0]?.id ?? "");
-                    return;
-                  }
+          {canBookForOthers ? (
+            <div className="grid gap-1.5 sm:col-span-2">
+              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Reservation for</span>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">{reservationMode === "self" ? "Reserve for me" : "Reserve for someone else"}</p>
+                  <p className="text-sm text-slate-500">Switch on when you are booking on behalf of another user.</p>
+                </div>
+                <ToggleSwitch
+                  checked={reservationMode === "other"}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setReservationMode("other");
+                      setSelectedUserId(otherUsers[0]?.id ?? "");
+                      return;
+                    }
 
-                  setReservationMode("self");
-                  setSelectedUserId(actingUser.id);
-                }}
-                srLabel="Toggle reservation target"
-                offLabel="Me"
-                onLabel="Someone else"
-              />
+                    setReservationMode("self");
+                    setSelectedUserId(actingUser.id);
+                  }}
+                  srLabel="Toggle reservation target"
+                  offLabel="Me"
+                  onLabel="Someone else"
+                />
+              </div>
             </div>
-          </div>
+          ) : null}
 
           {reservationMode === "other" ? (
             <label className="grid gap-1.5 font-medium sm:col-span-2">

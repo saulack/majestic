@@ -32,6 +32,18 @@ export async function createReservation(params: {
 
   const { startDate, endDate, notes, approvalEnabled, bookedForUserId, allowDoubleBooking = false } = params;
 
+  const { data: actingProfile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const canBookForOthers = actingProfile?.role === "admin" || actingProfile?.role === "superadmin";
+
+  if (bookedForUserId !== user.id && !canBookForOthers) {
+    return { error: "You can only create reservations for your own account." };
+  }
+
   if (!startDate || !endDate) {
     return { error: "Start and end dates are required." };
   }
@@ -72,6 +84,10 @@ export async function createReservation(params: {
     .single();
 
   if (insertError || !insertedReservation) {
+    if (insertError?.code === "42501" || /permission denied/i.test(insertError?.message ?? "")) {
+      return { error: "You do not have permission for that reservation action." };
+    }
+
     return { error: insertError.message };
   }
 
