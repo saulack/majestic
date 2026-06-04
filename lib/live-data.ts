@@ -56,21 +56,23 @@ export async function getAuthenticatedUserProfile(): Promise<UserProfile | null>
     return buildFallbackAuthenticatedUser(user);
   }
 
+  const admin = createAdminClient();
+  const normalizedEmail = user.email?.toLowerCase() ?? "";
+  const { data: roleGrant } = admin
+    ? await admin.from("role_grants").select("role").eq("email", normalizedEmail).maybeSingle()
+    : { data: null };
+
+  const grantedRole = roleGrant?.role === "admin" || roleGrant?.role === "superadmin" ? roleGrant.role : null;
+
   if (!profile) {
-    const admin = createAdminClient();
     if (!admin) {
-      return buildFallbackAuthenticatedUser(user);
+      const fallback = buildFallbackAuthenticatedUser(user);
+      return grantedRole ? { ...fallback, role: grantedRole } : fallback;
     }
 
     let resolvedRole: "user" | "admin" | "superadmin" = "user";
-    const { data: roleGrant } = await admin
-      .from("role_grants")
-      .select("role")
-      .eq("email", user.email?.toLowerCase() ?? "")
-      .maybeSingle();
-
-    if (roleGrant?.role === "admin" || roleGrant?.role === "superadmin") {
-      resolvedRole = roleGrant.role;
+    if (grantedRole) {
+      resolvedRole = grantedRole;
     }
 
     const fallbackName =
@@ -103,6 +105,11 @@ export async function getAuthenticatedUserProfile(): Promise<UserProfile | null>
       role: upsertedProfile.role,
       forcePasswordReset: upsertedProfile.force_password_reset
     };
+  }
+
+  if (grantedRole && profile.role !== grantedRole && admin) {
+    await admin.from("profiles").update({ role: grantedRole }).eq("id", profile.id);
+    profile.role = grantedRole;
   }
 
   return {
