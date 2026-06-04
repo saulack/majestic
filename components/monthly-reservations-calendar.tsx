@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   addDays,
   addMonths,
@@ -77,6 +77,8 @@ export function MonthlyReservationsCalendar({
   const [isPending, startTransition] = useTransition();
   const [declineTargetId, setDeclineTargetId] = useState<string | null>(null);
   const [declineReasonText, setDeclineReasonText] = useState("");
+  const isDraggingRef = useRef(false);
+  const dragMovedRef = useRef(false);
   const canDeleteAnyReservation = actingUser.role === "superadmin";
   const canBookForOthers = actingUser.role === "admin" || actingUser.role === "superadmin";
 
@@ -89,6 +91,20 @@ export function MonthlyReservationsCalendar({
   const otherUsers = users.filter((user) => user.id !== actingUser.id);
   const bookingTargetId = reservationMode === "self" ? actingUser.id : selectedUserId;
   const selectionHasConflict = activeStart && activeEnd ? hasDateConflict(reservations, activeStart, activeEnd) : false;
+
+  useEffect(() => {
+    function stopDragging() {
+      isDraggingRef.current = false;
+    }
+
+    window.addEventListener("pointerup", stopDragging);
+    window.addEventListener("pointercancel", stopDragging);
+
+    return () => {
+      window.removeEventListener("pointerup", stopDragging);
+      window.removeEventListener("pointercancel", stopDragging);
+    };
+  }, []);
 
   function applyRange(first: string, second: string, source: "calendar" | "input") {
     const [nextStart, nextEnd] = normalizeRange(first, second);
@@ -115,6 +131,11 @@ export function MonthlyReservationsCalendar({
   }
 
   function handleCalendarClick(dayKey: string) {
+    if (dragMovedRef.current) {
+      dragMovedRef.current = false;
+      return;
+    }
+
     if (calendarSelectionError) {
       setCalendarSelectionError("");
     }
@@ -168,6 +189,63 @@ export function MonthlyReservationsCalendar({
 
     applyRange(nextStart, nextEnd, "calendar");
     setSelectionStatus("Expanded range to include selected day.");
+  }
+
+  function handleCalendarPointerDown(dayKey: string) {
+    isDraggingRef.current = true;
+    dragMovedRef.current = false;
+
+    if (calendarSelectionError) {
+      setCalendarSelectionError("");
+    }
+
+    if (!startDate || !endDate) {
+      if (!canSelectRange(dayKey, dayKey)) {
+        isDraggingRef.current = false;
+        setCalendarSelectionError("That date is unavailable for booking. Pick another day or enable overlap booking.");
+        return;
+      }
+
+      setStartDate(dayKey);
+      setEndDate(dayKey);
+      setSelectionStatus("Selected first day. Drag right to add days.");
+      return;
+    }
+
+    const clampedTarget = compareAsc(parseISO(dayKey), parseISO(startDate)) < 0 ? startDate : dayKey;
+
+    if (compareAsc(parseISO(clampedTarget), parseISO(endDate)) > 0 && !canSelectRange(startDate, clampedTarget)) {
+      isDraggingRef.current = false;
+      setCalendarSelectionError("Some selected dates are unavailable. Choose open dates or allow overlap booking.");
+      return;
+    }
+
+    setEndDate(clampedTarget);
+    setSelectionStatus("Drag to later dates to add. Drag to earlier dates to remove.");
+  }
+
+  function handleCalendarPointerEnter(dayKey: string) {
+    if (!isDraggingRef.current || !startDate) {
+      return;
+    }
+
+    const clampedTarget = compareAsc(parseISO(dayKey), parseISO(startDate)) < 0 ? startDate : dayKey;
+    const currentEnd = endDate || startDate;
+
+    if (clampedTarget === currentEnd) {
+      return;
+    }
+
+    const isExpanding = compareAsc(parseISO(clampedTarget), parseISO(currentEnd)) > 0;
+
+    if (isExpanding && !canSelectRange(startDate, clampedTarget)) {
+      setCalendarSelectionError("Some selected dates are unavailable. Choose open dates or allow overlap booking.");
+      return;
+    }
+
+    dragMovedRef.current = true;
+    setEndDate(clampedTarget);
+    setSelectionStatus(isExpanding ? "Added days to selection." : "Removed days from selection.");
   }
 
   function clearSelection() {
@@ -474,6 +552,8 @@ export function MonthlyReservationsCalendar({
               <button
                 key={dayKey}
                 type="button"
+                onPointerDown={() => handleCalendarPointerDown(dayKey)}
+                onPointerEnter={() => handleCalendarPointerEnter(dayKey)}
                 onClick={() => handleCalendarClick(dayKey)}
                 className={[
                   "min-h-24 rounded-lg border p-2 text-left text-xs transition sm:min-h-28",
@@ -574,11 +654,7 @@ export function MonthlyReservationsCalendar({
 
         <div className="mt-6 grid gap-4">
           <h3 className="text-lg sm:text-xl">Reservations</h3>
-          <p className="text-sm text-slate-600">
-            {approvalsEnabled
-              ? "Approvals are active from the admin portal."
-              : "Approvals are paused from the admin portal. Reservations book directly."}
-          </p>
+          {approvalsEnabled ? <p className="text-sm text-slate-600">Approvals are active.</p> : null}
 
           <div className="grid gap-4">
             {reservations.map((reservation) => {
