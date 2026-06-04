@@ -190,6 +190,7 @@ export function AdminConsole({
           {mockUsers.map((user) => (
             <li key={user.id} className="rounded-lg border border-slate-200 px-3 py-2">
               <span className="font-semibold">{user.fullName}</span> - {user.email} - {user.role}
+              <p className="mt-1 text-xs text-slate-500">User ID: {user.id}</p>
             </li>
           ))}
         </ul>

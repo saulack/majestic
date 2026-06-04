@@ -54,10 +54,21 @@ export default async function ReservationsPage() {
     getReservationApprovalsEnabled()
   ]);
 
+  const normalizedReservations = approvalsEnabled
+    ? reservations
+    : reservations.map((reservation) =>
+        reservation.status === "pending"
+          ? {
+              ...reservation,
+              status: "approved" as const
+            }
+          : reservation
+      );
+
   return (
     <AppShell>
       <MonthlyReservationsCalendar
-        reservations={reservations}
+        reservations={normalizedReservations}
         holidayMap={holidayMap}
         users={mockUsers}
         approvalsEnabled={approvalsEnabled}

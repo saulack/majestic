@@ -357,11 +357,14 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
               reservationsOnDay.find((reservation) => reservation.status === "pending") ??
               reservationsOnDay[0];
             const isBookedCell = Boolean(primaryReservation);
+            const isOwnReservation = primaryReservation?.userId === currentUser.id;
 
             const bookedCellCls =
               primaryReservation?.status === "declined"
                 ? "bg-rose-300 text-rose-900 border-rose-400"
-                : primaryReservation?.status === "pending"
+                : !isOwnReservation
+                  ? "bg-slate-300 text-slate-900 border-slate-400"
+                  : primaryReservation?.status === "pending"
                   ? "bg-amber-400 text-amber-950 border-amber-500"
                   : "bg-emerald-600 text-white border-emerald-700";
 

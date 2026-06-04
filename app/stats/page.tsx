@@ -1,80 +1,102 @@
-import { AppShell } from "@/components/app-shell";
-import { StatsChart } from "@/components/stats-chart";
-import { mockReservations, currentUser } from "@/lib/mock-data";
-import { yearlyDaysByUser, totalDaysInReservation } from "@/lib/reservation-utils";
-import { isSuperadmin } from "@/lib/rbac";
+"use client";
+
+import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
+import { AppShell } from "@/components/app-shell";
+import { currentUser, mockReservations } from "@/lib/mock-data";
+import { totalDaysInReservation } from "@/lib/reservation-utils";
+
+type Scope = "currentYear" | "allTime";
 
 export default function StatsPage() {
-  const year = new Date().getFullYear();
-  const user = currentUser;
+  const [scope, setScope] = useState<Scope>("currentYear");
+  const currentYear = new Date().getFullYear();
 
-  // Personal stats — visible to all roles
-  const myReservations = mockReservations.filter((r) => r.userId === user.id);
-  const myApproved = myReservations.filter((r) => r.status === "approved");
-  const myPending = myReservations.filter((r) => r.status === "pending");
-  const myTotalNights = myApproved.reduce((sum, r) => sum + totalDaysInReservation(r), 0);
-  const myUpcoming = myApproved.filter((r) => r.startDate >= format(new Date(), "yyyy-MM-dd"));
+  const myReservations = useMemo(() => {
+    const mine = mockReservations.filter((reservation) => reservation.userId === currentUser.id);
 
-  // Aggregate stats — superadmin only
-  const grouped = yearlyDaysByUser(mockReservations, year);
-  const chartData = Object.entries(grouped).map(([name, days]) => ({ name, days }));
+    if (scope === "allTime") {
+      return mine;
+    }
+
+    return mine.filter((reservation) => parseISO(reservation.startDate).getFullYear() === currentYear);
+  }, [scope, currentYear]);
+
+  const canceledReservations = myReservations.filter((reservation) => reservation.status === "declined");
+  const reservedDays = myReservations
+    .filter((reservation) => reservation.status === "approved")
+    .reduce((sum, reservation) => sum + totalDaysInReservation(reservation), 0);
 
   return (
     <AppShell>
-      <div className="grid gap-5 sm:gap-6">
-        {/* ── Personal stats ──────────────────────────── */}
-        <section className="card p-5 sm:p-6">
-          <h2 className="text-xl sm:text-2xl">My Apartment Stats</h2>
-          <p className="mt-1 text-sm leading-relaxed text-slate-600">
-            Your personal booking history and upcoming stays.
-          </p>
-
-          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <StatTile label="Total bookings" value={myReservations.length} />
-            <StatTile label="Nights approved" value={myTotalNights} accent="copper" />
-            <StatTile label="Pending review" value={myPending.length} accent="amber" />
-            <StatTile label="Upcoming stays" value={myUpcoming.length} accent="copper" />
+      <section className="card p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl sm:text-2xl">My Reservation Stats</h2>
+            <p className="mt-1 text-sm leading-relaxed text-slate-600">
+              Personal stats only: total reservations, total days reserved, and total canceled reservations.
+            </p>
           </div>
 
-          {myReservations.length > 0 ? (
-            <div className="mt-6">
-              <h3 className="mb-3 text-base font-semibold">All My Reservations</h3>
-              <div className="grid gap-3">
-                {myReservations.map((r) => (
-                  <div key={r.id} className="flex items-start justify-between rounded-xl border border-slate-200 bg-white px-3.5 py-3 sm:px-4">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">
-                        {format(parseISO(r.startDate), "MMM d")} – {format(parseISO(r.endDate), "MMM d, yyyy")}
-                      </p>
-                      {r.notes ? <p className="mt-0.5 text-xs text-slate-500">{r.notes}</p> : null}
-                      {r.status === "declined" && r.declineReason ? (
-                        <p className="mt-1 text-xs text-rose-600">
-                          <span className="font-semibold">Declined: </span>{r.declineReason}
-                        </p>
-                      ) : null}
-                    </div>
-                    <StatusBadge status={r.status} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="mt-6 text-sm text-slate-500">You have no reservations yet.</p>
-          )}
-        </section>
+          <div className="inline-flex rounded-lg border border-slate-300 bg-white p-1">
+            <button
+              type="button"
+              onClick={() => setScope("currentYear")}
+              className={[
+                "rounded-md px-3 py-1.5 text-sm",
+                scope === "currentYear" ? "bg-amber-700 text-white" : "text-slate-700"
+              ].join(" ")}
+            >
+              Current year
+            </button>
+            <button
+              type="button"
+              onClick={() => setScope("allTime")}
+              className={[
+                "rounded-md px-3 py-1.5 text-sm",
+                scope === "allTime" ? "bg-amber-700 text-white" : "text-slate-700"
+              ].join(" ")}
+            >
+              All time
+            </button>
+          </div>
+        </div>
 
-        {/* ── Aggregate chart — superadmin only ──────── */}
-        {isSuperadmin(user) ? (
-          <section className="card p-5 sm:p-6">
-            <h2 className="text-xl sm:text-2xl">Family Overview — {year}</h2>
-            <p className="mt-1 text-sm leading-relaxed text-slate-600">
-              Total nights per member for the current calendar year.
-            </p>
-            <StatsChart data={chartData} year={year} />
-          </section>
-        ) : null}
-      </div>
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatTile label="Reservations" value={myReservations.length} />
+          <StatTile label="Days reserved" value={reservedDays} accent="copper" />
+          <StatTile label="Canceled reservations" value={canceledReservations.length} accent="rose" />
+        </div>
+
+        {myReservations.length > 0 ? (
+          <div className="mt-6">
+            <h3 className="mb-3 text-base font-semibold">
+              My reservations ({scope === "currentYear" ? String(currentYear) : "all time"})
+            </h3>
+            <div className="grid gap-3">
+              {myReservations.map((reservation) => (
+                <div key={reservation.id} className="flex items-start justify-between rounded-xl border border-slate-200 bg-white px-3.5 py-3 sm:px-4">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">
+                      {format(parseISO(reservation.startDate), "MMM d")} - {format(parseISO(reservation.endDate), "MMM d, yyyy")}
+                    </p>
+                    {reservation.notes ? <p className="mt-0.5 text-xs text-slate-500">{reservation.notes}</p> : null}
+                    {reservation.status === "declined" && reservation.declineReason ? (
+                      <p className="mt-1 text-xs text-rose-600">
+                        <span className="font-semibold">Canceled/Declined: </span>
+                        {reservation.declineReason}
+                      </p>
+                    ) : null}
+                  </div>
+                  <StatusBadge status={reservation.status} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="mt-6 text-sm text-slate-500">No reservations found for this period.</p>
+        )}
+      </section>
     </AppShell>
   );
 }
@@ -86,18 +108,20 @@ function StatTile({
 }: {
   label: string;
   value: number;
-  accent?: "slate" | "copper" | "amber";
+  accent?: "slate" | "copper" | "rose";
 }) {
   const ring = {
     slate: "border-slate-200 bg-white",
     copper: "border-amber-700/40 bg-amber-50/30",
-    amber: "border-amber-700/40 bg-amber-50/20"
+    rose: "border-rose-400/40 bg-rose-50/30"
   }[accent];
+
   const text = {
     slate: "text-slate-800",
     copper: "text-amber-700",
-    amber: "text-amber-700"
+    rose: "text-rose-700"
   }[accent];
+
   return (
     <div className={`rounded-xl border p-3.5 text-center sm:p-4 ${ring}`}>
       <p className={`text-2xl font-bold sm:text-3xl ${text}`}>{value}</p>
@@ -107,9 +131,13 @@ function StatTile({
 }
 
 function StatusBadge({ status }: { status: string }) {
-  if (status === "approved")
+  if (status === "approved") {
     return <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800">Approved</span>;
-  if (status === "declined")
-    return <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs text-rose-800">Declined</span>;
+  }
+
+  if (status === "declined") {
+    return <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs text-rose-800">Canceled</span>;
+  }
+
   return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Pending</span>;
 }

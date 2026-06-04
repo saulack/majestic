@@ -3,6 +3,7 @@ import { BookOpen } from "lucide-react";
 import { ContactsManager } from "@/app/info/contacts-manager";
 import { AccessCodesManager } from "@/app/info/access-codes-manager";
 import { EmergencyContactsManager } from "@/app/info/emergency-contacts-manager";
+import { CheckoutChecklistManager } from "@/app/info/checkout-checklist-manager";
 
 export default function InfoPage() {
   return (
@@ -19,6 +20,8 @@ export default function InfoPage() {
           <AccessCodesManager />
 
           <EmergencyContactsManager />
+
+          <CheckoutChecklistManager />
 
           <InfoCard
             icon={<BookOpen className="h-5 w-5 text-amber-700" />}
