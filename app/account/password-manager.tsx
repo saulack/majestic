@@ -11,15 +11,15 @@ export function PasswordManager({ email }: { email: string }) {
     const supabase = createClient();
 
     if (!supabase) {
-      setStatus("Password reset email will be connected later.");
+      setStatus("Password reset is unavailable because Supabase is not configured.");
       return;
     }
 
     setBusy(true);
-    setStatus("Preparing reset...");
+    setStatus("Sending reset email...");
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`
+      redirectTo: `${window.location.origin}/reset-password`
     });
 
     setBusy(false);
@@ -28,14 +28,14 @@ export function PasswordManager({ email }: { email: string }) {
       return;
     }
 
-    setStatus(`Password reset instructions sent to ${email}.`);
+    setStatus(`Password reset email sent to ${email}. Open the link in your email to set a new password.`);
   }
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
       <h3 className="text-lg font-semibold">Password</h3>
       <p className="mt-2 text-sm text-slate-600">
-        Use a password reset flow instead of a hard-coded temporary password. We can connect this to a fuller email service next.
+        Send a secure password reset email through Supabase.
       </p>
 
       <button
@@ -46,7 +46,7 @@ export function PasswordManager({ email }: { email: string }) {
         }}
         className="mt-4 rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-60"
       >
-        {busy ? "Preparing reset..." : "Reset password"}
+        {busy ? "Sending email..." : "Send reset email"}
       </button>
 
       {status ? <p className="mt-3 text-sm text-slate-700">{status}</p> : null}
