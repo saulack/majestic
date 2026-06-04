@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell";
+import { BiometricAuthManager } from "@/app/account/biometric-auth-manager";
 import { PasswordManager } from "@/app/account/password-manager";
 import { currentUser, mockPreferences } from "@/lib/mock-data";
 
@@ -51,6 +52,8 @@ export default function AccountPage() {
           </div>
 
           <PasswordManager />
+
+          <BiometricAuthManager />
         </div>
       </section>
     </AppShell>

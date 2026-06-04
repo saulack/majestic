@@ -46,7 +46,7 @@ export default async function HomePage() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-[0.28em] text-amber-700">Upcoming reservations</p>
-            <h3 className="mt-2 text-xl sm:text-2xl">Next {upcomingReservationCount} reservations</h3>
+            <h3 className="mt-2 text-xl sm:text-2xl">nex {upcomingReservationCount} reservations</h3>
           </div>
           <p className="text-sm text-slate-500">Showing the next reservations configured by admin.</p>
         </div>

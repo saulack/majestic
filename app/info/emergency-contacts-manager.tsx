@@ -3,19 +3,21 @@
 import { useMemo, useState } from "react";
 import { PhoneCall, Plus, X } from "lucide-react";
 
-type EmergencyContact = {
+export type EmergencyContact = {
   id: string;
   title: string;
   name: string;
   phoneNumber: string;
 };
 
-const initialEmergencyContacts: EmergencyContact[] = [];
+const defaultEmergencyContacts: EmergencyContact[] = [];
 
-export function EmergencyContactsManager() {
-  const [contacts, setContacts] = useState<EmergencyContact[]>(initialEmergencyContacts);
+export function EmergencyContactsManager({ initialContacts = defaultEmergencyContacts }: { initialContacts?: EmergencyContact[] }) {
+  const [contacts, setContacts] = useState<EmergencyContact[]>(initialContacts);
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [message, setMessage] = useState("");
   const [draft, setDraft] = useState({
     title: "",
     name: "",
@@ -36,21 +38,39 @@ export function EmergencyContactsManager() {
     setFormError("");
   }
 
-  function handleCreateContact() {
+  async function handleCreateContact() {
     if (!draft.title.trim() || !draft.name.trim() || !draft.phoneNumber.trim()) {
       setFormError("Title, name, and phone number are required.");
       return;
     }
 
-    setContacts((current) => [
-      {
-        id: crypto.randomUUID(),
-        title: draft.title.trim(),
-        name: draft.name.trim(),
-        phoneNumber: draft.phoneNumber.trim()
+    setSaving(true);
+    setFormError("");
+
+    const response = await fetch("/api/info/emergency-contacts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
       },
-      ...current
-    ]);
+      body: JSON.stringify(draft)
+    });
+
+    const payload = (await response.json()) as { contact?: EmergencyContact; error?: string };
+    setSaving(false);
+
+    if (!response.ok || !payload.contact) {
+      setFormError(payload.error ?? "Failed to save contact.");
+      return;
+    }
+
+    const createdContact = payload.contact;
+    if (!createdContact) {
+      setFormError("Failed to save contact.");
+      return;
+    }
+
+    setContacts((current) => [createdContact, ...current]);
+    setMessage("Emergency contact saved.");
 
     setOpen(false);
     resetForm();
@@ -102,6 +122,8 @@ export function EmergencyContactsManager() {
         )}
       </div>
 
+      {message ? <p className="mt-3 text-sm text-slate-600">{message}</p> : null}
+
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
           <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-[#fbf8f2] p-5 shadow-2xl sm:p-6">
@@ -145,8 +167,8 @@ export function EmergencyContactsManager() {
             {formError ? <p className="mt-3 text-sm text-rose-700">{formError}</p> : null}
 
             <div className="mt-5 flex flex-wrap gap-2">
-              <button type="button" onClick={handleCreateContact} className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-medium text-white">
-                Save contact
+              <button type="button" disabled={saving} onClick={() => void handleCreateContact()} className="rounded-lg bg-rose-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+                {saving ? "Saving..." : "Save contact"}
               </button>
               <button
                 type="button"

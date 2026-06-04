@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Users, Plus, X } from "lucide-react";
 
-type Contact = {
+export type Contact = {
   id: string;
   name: string;
   number: string;
@@ -13,12 +13,28 @@ type Contact = {
   isStaff: boolean;
 };
 
-const initialContacts: Contact[] = [];
+const defaultContacts: Contact[] = [];
 
-export function ContactsManager() {
+function formatPhoneNumber(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+
+  if (digits.length <= 3) {
+    return digits;
+  }
+
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  }
+
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+export function ContactsManager({ initialContacts = defaultContacts }: { initialContacts?: Contact[] }) {
   const [contacts, setContacts] = useState<Contact[]>(initialContacts);
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [message, setMessage] = useState("");
   const [draft, setDraft] = useState({
     name: "",
     number: "",
@@ -45,24 +61,46 @@ export function ContactsManager() {
     setFormError("");
   }
 
-  function handleCreateContact() {
-    if (!draft.name.trim() || !draft.number.trim() || !draft.email.trim() || !draft.address.trim() || !draft.function.trim()) {
-      setFormError("Please fill out every field.");
+  async function handleCreateContact() {
+    const hasContactMethod = Boolean(draft.number.trim() || draft.email.trim() || draft.address.trim());
+
+    if (!draft.name.trim() || !draft.function.trim()) {
+      setFormError("Name and function are required.");
       return;
     }
 
-    setContacts((current) => [
-      {
-        id: crypto.randomUUID(),
-        name: draft.name.trim(),
-        number: draft.number.trim(),
-        email: draft.email.trim(),
-        address: draft.address.trim(),
-        function: draft.function.trim(),
-        isStaff: draft.isStaff
+    if (!hasContactMethod) {
+      setFormError("Please provide at least one contact field: phone, email, or address.");
+      return;
+    }
+
+    setSaving(true);
+    setFormError("");
+
+    const response = await fetch("/api/info/contacts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
       },
-      ...current
-    ]);
+      body: JSON.stringify(draft)
+    });
+
+    const payload = (await response.json()) as { contact?: Contact; error?: string };
+    setSaving(false);
+
+    if (!response.ok || !payload.contact) {
+      setFormError(payload.error ?? "Failed to create contact.");
+      return;
+    }
+
+    const createdContact = payload.contact;
+    if (!createdContact) {
+      setFormError("Failed to create contact.");
+      return;
+    }
+
+    setContacts((current) => [createdContact, ...current]);
+    setMessage("Contact saved.");
 
     setOpen(false);
     resetForm();
@@ -108,12 +146,12 @@ export function ContactsManager() {
                 </div>
 
                 <div className="text-right text-sm text-slate-700">
-                  <p>{contact.number}</p>
-                  <p className="text-slate-500">{contact.email}</p>
+                  {contact.number ? <p>{contact.number}</p> : null}
+                  {contact.email ? <p className="text-slate-500">{contact.email}</p> : null}
                 </div>
               </div>
 
-              <p className="mt-3 text-sm text-slate-500">{contact.address}</p>
+              {contact.address ? <p className="mt-3 text-sm text-slate-500">{contact.address}</p> : null}
             </article>
           ))
         ) : (
@@ -122,6 +160,8 @@ export function ContactsManager() {
           </div>
         )}
       </div>
+
+      {message ? <p className="mt-3 text-sm text-slate-600">{message}</p> : null}
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
@@ -143,7 +183,12 @@ export function ContactsManager() {
               </label>
               <label className="grid gap-1.5 text-sm font-medium">
                 <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Number</span>
-                <input value={draft.number} onChange={(event) => setDraft((current) => ({ ...current, number: event.target.value }))} className="rounded-lg border border-slate-300 px-3 py-2" />
+                <input
+                  value={draft.number}
+                  onChange={(event) => setDraft((current) => ({ ...current, number: formatPhoneNumber(event.target.value) }))}
+                  placeholder="(555) 123-4567"
+                  className="rounded-lg border border-slate-300 px-3 py-2"
+                />
               </label>
               <label className="grid gap-1.5 text-sm font-medium">
                 <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Email</span>
@@ -171,8 +216,8 @@ export function ContactsManager() {
             {formError ? <p className="mt-3 text-sm text-rose-700">{formError}</p> : null}
 
             <div className="mt-5 flex flex-wrap gap-2">
-              <button type="button" onClick={handleCreateContact} className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white">
-                Create contact
+              <button type="button" disabled={saving} onClick={() => void handleCreateContact()} className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+                {saving ? "Saving..." : "Create contact"}
               </button>
               <button
                 type="button"

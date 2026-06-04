@@ -1,5 +1,25 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+export async function requireAuthenticated(): Promise<{ ok: true; userId: string } | { ok: false; message: string }> {
+  const supabase = await createServerSupabaseClient();
+
+  if (!supabase) {
+    // Local mock mode when Supabase env is not configured.
+    return { ok: true, userId: "mock-user" };
+  }
+
+  const {
+    data: { user },
+    error: userError
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return { ok: false, message: "You must be authenticated." };
+  }
+
+  return { ok: true, userId: user.id };
+}
+
 export async function requireSuperadmin(): Promise<{ ok: true; userId: string } | { ok: false; message: string }> {
   const supabase = await createServerSupabaseClient();
 

@@ -3,22 +3,70 @@
 import { useState } from "react";
 import { ClipboardCheck, Plus } from "lucide-react";
 
-type ChecklistItem = {
+export type ChecklistItem = {
   id: string;
   text: string;
   done: boolean;
 };
 
-export function CheckoutChecklistManager() {
-  const [items, setItems] = useState<ChecklistItem[]>([]);
-  const [draft, setDraft] = useState("");
+const defaultItems: ChecklistItem[] = [];
 
-  function addItem() {
+export function CheckoutChecklistManager({ initialItems = defaultItems }: { initialItems?: ChecklistItem[] }) {
+  const [items, setItems] = useState<ChecklistItem[]>(initialItems);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function addItem() {
     const text = draft.trim();
     if (!text) return;
 
-    setItems((current) => [{ id: crypto.randomUUID(), text, done: false }, ...current]);
+    setSaving(true);
+    setMessage("");
+
+    const response = await fetch("/api/info/checkout-items", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ text })
+    });
+
+    const payload = (await response.json()) as { item?: ChecklistItem; error?: string };
+    setSaving(false);
+
+    if (!response.ok || !payload.item) {
+      setMessage(payload.error ?? "Failed to add checklist item.");
+      return;
+    }
+
+    const createdItem = payload.item;
+    if (!createdItem) {
+      setMessage("Failed to add checklist item.");
+      return;
+    }
+
+    setItems((current) => [createdItem, ...current]);
     setDraft("");
+  }
+
+  async function toggleItem(itemId: string, done: boolean) {
+    const previous = items;
+    setItems((current) => current.map((entry) => (entry.id === itemId ? { ...entry, done } : entry)));
+
+    const response = await fetch("/api/info/checkout-items", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ id: itemId, done })
+    });
+
+    const payload = (await response.json()) as { error?: string };
+    if (!response.ok) {
+      setItems(previous);
+      setMessage(payload.error ?? "Failed to update checklist item.");
+    }
   }
 
   return (
@@ -38,11 +86,13 @@ export function CheckoutChecklistManager() {
           placeholder="Add checklist item"
           className="min-w-56 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
         />
-        <button type="button" onClick={addItem} className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white">
+        <button type="button" disabled={saving} onClick={() => void addItem()} className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
           <Plus className="h-4 w-4" />
-          Add item
+          {saving ? "Adding..." : "Add item"}
         </button>
       </div>
+
+      {message ? <p className="mt-3 text-sm text-slate-600">{message}</p> : null}
 
       {items.length === 0 ? (
         <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">
@@ -56,9 +106,7 @@ export function CheckoutChecklistManager() {
                 type="checkbox"
                 checked={item.done}
                 onChange={(event) => {
-                  setItems((current) =>
-                    current.map((entry) => (entry.id === item.id ? { ...entry, done: event.target.checked } : entry))
-                  );
+                  void toggleItem(item.id, event.target.checked);
                 }}
               />
               <span className={item.done ? "line-through text-slate-400" : "text-slate-700"}>{item.text}</span>

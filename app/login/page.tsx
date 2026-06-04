@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { isBiometricAuthEnabled, verifyBiometricAuthentication } from "@/lib/biometric-auth";
 import { activateLocalAuthSession, getLocalAuthDefaults, readLocalAuthSnapshot } from "@/lib/local-auth";
 
 export default function LoginPage() {
@@ -26,6 +27,14 @@ export default function LoginPage() {
     const localPasswordMatches = password === localSnapshot.password;
 
     if (localUsernameMatches && localPasswordMatches && !createClient()) {
+      if (isBiometricAuthEnabled()) {
+        const biometric = await verifyBiometricAuthentication();
+        if (!biometric.ok) {
+          setMessage(biometric.error ?? "Biometric authentication failed.");
+          return;
+        }
+      }
+
       activateLocalAuthSession(username);
       setMessage("Signed in with the local session.");
       router.push("/");
@@ -36,6 +45,14 @@ export default function LoginPage() {
     const supabase = createClient();
     if (!supabase) {
       if (localUsernameMatches && localPasswordMatches) {
+        if (isBiometricAuthEnabled()) {
+          const biometric = await verifyBiometricAuthentication();
+          if (!biometric.ok) {
+            setMessage(biometric.error ?? "Biometric authentication failed.");
+            return;
+          }
+        }
+
         activateLocalAuthSession(username);
         setMessage("Signed in with the local session.");
         router.push("/");
@@ -60,6 +77,15 @@ export default function LoginPage() {
     setBusy(false);
 
     if (!error) {
+      if (isBiometricAuthEnabled()) {
+        const biometric = await verifyBiometricAuthentication();
+        if (!biometric.ok) {
+          await supabase.auth.signOut();
+          setMessage(biometric.error ?? "Biometric authentication failed.");
+          return;
+        }
+      }
+
       activateLocalAuthSession(username);
       router.push("/");
       router.refresh();
@@ -67,6 +93,14 @@ export default function LoginPage() {
     }
 
     if (localUsernameMatches && localPasswordMatches) {
+      if (isBiometricAuthEnabled()) {
+        const biometric = await verifyBiometricAuthentication();
+        if (!biometric.ok) {
+          setMessage(biometric.error ?? "Biometric authentication failed.");
+          return;
+        }
+      }
+
       activateLocalAuthSession(username);
       setMessage("Signed in with the local session.");
       router.push("/");

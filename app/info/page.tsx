@@ -1,11 +1,56 @@
 import { AppShell } from "@/components/app-shell";
 import { BookOpen } from "lucide-react";
-import { ContactsManager } from "@/app/info/contacts-manager";
-import { AccessCodesManager } from "@/app/info/access-codes-manager";
-import { EmergencyContactsManager } from "@/app/info/emergency-contacts-manager";
-import { CheckoutChecklistManager } from "@/app/info/checkout-checklist-manager";
+import { AccessCodesManager, type AccessCode } from "@/app/info/access-codes-manager";
+import { CheckoutChecklistManager, type ChecklistItem } from "@/app/info/checkout-checklist-manager";
+import { ContactsManager, type Contact } from "@/app/info/contacts-manager";
+import { EmergencyContactsManager, type EmergencyContact } from "@/app/info/emergency-contacts-manager";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-export default function InfoPage() {
+export default async function InfoPage() {
+  const supabase = await createServerSupabaseClient();
+  let contacts: Contact[] = [];
+  let accessCodes: AccessCode[] = [];
+  let emergencyContacts: EmergencyContact[] = [];
+  let checkoutItems: ChecklistItem[] = [];
+
+  if (supabase) {
+    const [contactsResult, accessCodesResult, emergencyResult, checkoutResult] = await Promise.all([
+      supabase.from("info_contacts").select("id,name,number,email,address,role_function,is_staff").order("name", { ascending: true }),
+      supabase.from("info_access_codes").select("id,title,passcode,location,notes").order("title", { ascending: true }),
+      supabase.from("info_emergency_contacts").select("id,title,name,phone_number").order("title", { ascending: true }),
+      supabase.from("info_checkout_items").select("id,text,done").order("created_at", { ascending: false })
+    ]);
+
+    if (!contactsResult.error && contactsResult.data) {
+      contacts = contactsResult.data.map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        number: entry.number,
+        email: entry.email,
+        address: entry.address,
+        function: entry.role_function,
+        isStaff: entry.is_staff
+      }));
+    }
+
+    if (!accessCodesResult.error && accessCodesResult.data) {
+      accessCodes = accessCodesResult.data;
+    }
+
+    if (!emergencyResult.error && emergencyResult.data) {
+      emergencyContacts = emergencyResult.data.map((entry) => ({
+        id: entry.id,
+        title: entry.title,
+        name: entry.name,
+        phoneNumber: entry.phone_number
+      }));
+    }
+
+    if (!checkoutResult.error && checkoutResult.data) {
+      checkoutItems = checkoutResult.data;
+    }
+  }
+
   return (
     <AppShell>
       <section className="card p-6">
@@ -15,13 +60,13 @@ export default function InfoPage() {
         </p>
 
         <div className="mt-8 grid gap-6 xl:grid-cols-2">
-          <ContactsManager />
+          <ContactsManager initialContacts={contacts} />
 
-          <AccessCodesManager />
+          <AccessCodesManager initialAccessCodes={accessCodes} />
 
-          <EmergencyContactsManager />
+          <EmergencyContactsManager initialContacts={emergencyContacts} />
 
-          <CheckoutChecklistManager />
+          <CheckoutChecklistManager initialItems={checkoutItems} />
 
           <InfoCard
             icon={<BookOpen className="h-5 w-5 text-amber-700" />}

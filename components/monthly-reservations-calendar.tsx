@@ -122,9 +122,28 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
       return;
     }
 
-    setStartDate(dayKey);
-    setEndDate(dayKey);
-    setSelectionStatus("Selection reset to one day. Click another day or drag to extend.");
+    const previousEdgeDay = format(addDays(parseISO(startDate), -1), "yyyy-MM-dd");
+    const nextEdgeDay = format(addDays(parseISO(endDate), 1), "yyyy-MM-dd");
+
+    if (dayKey === previousEdgeDay) {
+      setStartDate(dayKey);
+      setSelectionStatus("Added one day to the start of the range.");
+      return;
+    }
+
+    if (dayKey === nextEdgeDay) {
+      setEndDate(dayKey);
+      setSelectionStatus("Added one day to the end of the range.");
+      return;
+    }
+
+    if (dayKey >= startDate && dayKey <= endDate) {
+      setSelectionStatus("That day is already in the selected range.");
+      return;
+    }
+
+    applyRange(startDate, dayKey, "calendar");
+    setSelectionStatus("Expanded range to include selected day.");
   }
 
   function handleCalendarMouseDown(dayKey: string) {
