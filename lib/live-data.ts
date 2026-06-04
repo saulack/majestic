@@ -10,6 +10,7 @@ import type {
   UserProfile
 } from "@/lib/types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function getAuthenticatedUserProfile(): Promise<UserProfile | null> {
   const supabase = await createServerSupabaseClient();
@@ -32,8 +33,57 @@ export async function getAuthenticatedUserProfile(): Promise<UserProfile | null>
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profileError || !profile) {
+  if (profileError) {
     return null;
+  }
+
+  if (!profile) {
+    const admin = createAdminClient();
+    if (!admin) {
+      return null;
+    }
+
+    let resolvedRole: "user" | "admin" | "superadmin" = "user";
+    const { data: roleGrant } = await admin
+      .from("role_grants")
+      .select("role")
+      .eq("email", user.email?.toLowerCase() ?? "")
+      .maybeSingle();
+
+    if (roleGrant?.role === "admin" || roleGrant?.role === "superadmin") {
+      resolvedRole = roleGrant.role;
+    }
+
+    const fallbackName =
+      (user.user_metadata?.full_name as string | undefined)?.trim() ||
+      (user.email?.split("@")[0] ?? "User");
+
+    const { data: upsertedProfile, error: upsertError } = await admin
+      .from("profiles")
+      .upsert(
+        {
+          id: user.id,
+          email: user.email?.toLowerCase() ?? "",
+          full_name: fallbackName,
+          role: resolvedRole,
+          force_password_reset: false
+        },
+        { onConflict: "id" }
+      )
+      .select("id,full_name,email,role,force_password_reset")
+      .single();
+
+    if (upsertError || !upsertedProfile) {
+      return null;
+    }
+
+    return {
+      id: upsertedProfile.id,
+      fullName: upsertedProfile.full_name,
+      email: upsertedProfile.email,
+      role: upsertedProfile.role,
+      forcePasswordReset: upsertedProfile.force_password_reset
+    };
   }
 
   return {
