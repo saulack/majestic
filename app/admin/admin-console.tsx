@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ToggleSwitch } from "@/components/toggle-switch";
 import { clearRolePreviewInBrowser, setRolePreviewInBrowser } from "@/lib/role-preview";
-import type { MaintenanceType, UserProfile } from "@/lib/types";
+import type { MaintenanceThresholdApproval, MaintenanceType, UserProfile } from "@/lib/types";
 
 type ApiResult = {
   message?: string;
@@ -19,12 +19,14 @@ export function AdminConsole({
   initialApprovalsEnabled,
   initialHomepageReservationCount,
   initialMaintenanceTypes,
+  initialThresholdApprovals,
   initialUsers,
   currentUserId
 }: {
   initialApprovalsEnabled: boolean;
   initialHomepageReservationCount: number;
   initialMaintenanceTypes: MaintenanceType[];
+  initialThresholdApprovals: MaintenanceThresholdApproval[];
   initialUsers: UserProfile[];
   currentUserId: string;
 }) {
@@ -34,11 +36,11 @@ export function AdminConsole({
   const [approvalsEnabled, setApprovalsEnabled] = useState(initialApprovalsEnabled);
   const [homepageReservationCount, setHomepageReservationCount] = useState(initialHomepageReservationCount);
   const [maintenanceTypes, setMaintenanceTypes] = useState(initialMaintenanceTypes);
+  const [thresholdApprovals, setThresholdApprovals] = useState(initialThresholdApprovals);
+  const [thresholdApprovalsOpen, setThresholdApprovalsOpen] = useState(false);
   const [users, setUsers] = useState(initialUsers);
   const [manualInviteStatus, setManualInviteStatus] = useState("");
   const [manualInviteLink, setManualInviteLink] = useState("");
-  const [newMaintenanceTypeName, setNewMaintenanceTypeName] = useState("");
-  const [newMaintenanceThresholdDays, setNewMaintenanceThresholdDays] = useState(30);
 
   async function postJson(path: string, body: Record<string, string | boolean | number>): Promise<ApiResult> {
     setLoading(true);
@@ -140,6 +142,99 @@ export function AdminConsole({
       </div>
 
       <div className="card p-5 sm:p-6 lg:col-span-2">
+        <button
+          type="button"
+          onClick={() => setThresholdApprovalsOpen((current) => !current)}
+          className={[
+            "flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition",
+            thresholdApprovals.length > 0
+              ? "border-rose-300 bg-rose-50 text-rose-800"
+              : "border-slate-200 bg-slate-50 text-slate-800"
+          ].join(" ")}
+        >
+          <div>
+            <p className="text-base font-semibold">Threshold Approvals</p>
+            <p className="mt-1 text-sm">
+              {thresholdApprovals.length > 0
+                ? `${thresholdApprovals.length} pending request${thresholdApprovals.length === 1 ? "" : "s"}`
+                : "No pending threshold requests"}
+            </p>
+          </div>
+          <span className="text-sm font-medium">{thresholdApprovalsOpen ? "Hide" : "Show"}</span>
+        </button>
+
+        {thresholdApprovalsOpen ? (
+          <div className="mt-4 grid gap-3">
+            {thresholdApprovals.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                There are currently no pending threshold approvals.
+              </div>
+            ) : (
+              thresholdApprovals.map((approval) => (
+                <div key={approval.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{approval.maintenanceTypeName}</p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Requested by {approval.requestedByName}: set threshold to {approval.proposedThresholdDays} days.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => {
+                          void (async () => {
+                            const response = await postJson("/api/admin/maintenance-threshold-approvals", {
+                              approvalId: approval.id,
+                              action: "approve"
+                            });
+
+                            if (!response.error) {
+                              setThresholdApprovals((current) => current.filter((entry) => entry.id !== approval.id));
+                              setMaintenanceTypes((current) =>
+                                current.map((entry) =>
+                                  entry.id === approval.maintenanceTypeId
+                                    ? { ...entry, thresholdDays: approval.proposedThresholdDays }
+                                    : entry
+                                )
+                              );
+                            }
+                          })();
+                        }}
+                        className="rounded-lg bg-emerald-700 px-3 py-2 text-white disabled:opacity-60"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => {
+                          void (async () => {
+                            const response = await postJson("/api/admin/maintenance-threshold-approvals", {
+                              approvalId: approval.id,
+                              action: "reject"
+                            });
+
+                            if (!response.error) {
+                              setThresholdApprovals((current) => current.filter((entry) => entry.id !== approval.id));
+                            }
+                          })();
+                        }}
+                        className="rounded-lg border border-rose-300 px-3 py-2 text-rose-700 disabled:opacity-60"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="card p-5 sm:p-6 lg:col-span-2">
         <h2 className="text-xl sm:text-2xl">Homepage Reservations</h2>
         <p className="mt-2 text-sm text-slate-600">
           Choose how many upcoming reservations appear on the homepage.
@@ -172,58 +267,15 @@ export function AdminConsole({
       <div className="card p-5 sm:p-6 lg:col-span-2">
         <h2 className="text-xl sm:text-2xl">Maintenance Types</h2>
         <p className="mt-2 text-sm text-slate-600">
-          Add maintenance categories and set how many days can pass before a booking should trigger a reminder.
+          Maintenance categories are created from contacts marked as maintenance contacts in the Info section.
         </p>
 
-        <form
-          className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1.5fr_180px_auto]"
-          onSubmit={(event) => {
-            event.preventDefault();
-
-            void (async () => {
-              const response = await postJson("/api/admin/maintenance-types", {
-                name: newMaintenanceTypeName,
-                thresholdDays: newMaintenanceThresholdDays
-              });
-
-              if (!response.error && response.maintenanceType) {
-                setMaintenanceTypes((current) => [...current, response.maintenanceType!].sort((left, right) => left.name.localeCompare(right.name)));
-                setNewMaintenanceTypeName("");
-                setNewMaintenanceThresholdDays(30);
-              }
-            })();
-          }}
-        >
-          <label className="grid gap-1.5 text-sm font-medium">
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">New type</span>
-            <input
-              value={newMaintenanceTypeName}
-              onChange={(event) => setNewMaintenanceTypeName(event.target.value)}
-              placeholder="Example: Deep cleaning"
-              className="rounded-lg border border-slate-300 px-3 py-2"
-              required
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium">
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Threshold days</span>
-            <input
-              type="number"
-              min={1}
-              value={newMaintenanceThresholdDays}
-              onChange={(event) => setNewMaintenanceThresholdDays(Number(event.target.value))}
-              className="rounded-lg border border-slate-300 px-3 py-2"
-              required
-            />
-          </label>
-          <div className="flex items-end">
-            <button disabled={loading} type="submit" className="rounded-lg bg-amber-700 px-4 py-2 text-white">
-              Add type
-            </button>
-          </div>
-        </form>
-
         <div className="mt-4 grid gap-3">
-          {maintenanceTypes.map((maintenanceType) => (
+          {maintenanceTypes.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+              No maintenance categories yet. Add a contact as a maintenance contact to create one automatically.
+            </div>
+          ) : maintenanceTypes.map((maintenanceType) => (
             <form
               key={maintenanceType.id}
               className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
@@ -263,6 +315,35 @@ export function AdminConsole({
               </label>
               <button disabled={loading} type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700">
                 Save threshold
+              </button>
+              <button
+                disabled={loading}
+                type="button"
+                onClick={() => {
+                  const confirmed = window.confirm(`Remove ${maintenanceType.name} from maintenance categories?`);
+                  if (!confirmed) {
+                    return;
+                  }
+
+                  void (async () => {
+                    const response = await fetch("/api/admin/maintenance-types", {
+                      method: "DELETE",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ maintenanceTypeId: maintenanceType.id })
+                    });
+
+                    const payload = (await response.json()) as ApiResult;
+                    setResult(payload);
+
+                    if (!payload.error) {
+                      setMaintenanceTypes((current) => current.filter((entry) => entry.id !== maintenanceType.id));
+                      router.refresh();
+                    }
+                  })();
+                }}
+                className="rounded-lg border border-rose-300 px-4 py-2 text-rose-700"
+              >
+                Remove category
               </button>
             </form>
           ))}

@@ -28,7 +28,10 @@ export default async function InfoPage() {
 
   if (supabase) {
     const [contactsResult, accessCodesResult, emergencyResult, checkoutResult] = await Promise.all([
-      supabase.from("info_contacts").select("id,name,number,email,address,role_function,is_staff").order("name", { ascending: true }),
+      supabase
+        .from("info_contacts")
+        .select("id,name,number,email,address,role_function,is_staff,is_maintenance,maintenance_category")
+        .order("name", { ascending: true }),
       supabase.from("info_access_codes").select("id,title,passcode,location,notes").order("title", { ascending: true }),
       supabase.from("info_emergency_contacts").select("id,title,name,phone_number").order("title", { ascending: true }),
       supabase.from("info_checkout_items").select("id,text,done").order("created_at", { ascending: false })
@@ -42,7 +45,9 @@ export default async function InfoPage() {
         email: entry.email,
         address: entry.address,
         function: entry.role_function,
-        isStaff: entry.is_staff
+        isStaff: entry.is_staff,
+        isMaintenance: entry.is_maintenance,
+        maintenanceCategory: entry.maintenance_category ?? undefined
       }));
     }
 

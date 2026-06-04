@@ -11,6 +11,8 @@ export type Contact = {
   address: string;
   function: string;
   isStaff: boolean;
+  isMaintenance?: boolean;
+  maintenanceCategory?: string;
 };
 
 const defaultContacts: Contact[] = [];
@@ -41,7 +43,10 @@ export function ContactsManager({ initialContacts = defaultContacts }: { initial
     email: "",
     address: "",
     function: "",
-    isStaff: false
+    isStaff: false,
+    isMaintenance: false,
+    maintenanceCategory: "",
+    maintenanceThresholdDays: 30
   });
 
   const sortedContacts = useMemo(
@@ -56,7 +61,10 @@ export function ContactsManager({ initialContacts = defaultContacts }: { initial
       email: "",
       address: "",
       function: "",
-      isStaff: false
+      isStaff: false,
+      isMaintenance: false,
+      maintenanceCategory: "",
+      maintenanceThresholdDays: 30
     });
     setFormError("");
   }
@@ -85,7 +93,7 @@ export function ContactsManager({ initialContacts = defaultContacts }: { initial
       body: JSON.stringify(draft)
     });
 
-    const payload = (await response.json()) as { contact?: Contact; error?: string };
+    const payload = (await response.json()) as { contact?: Contact; error?: string; message?: string };
     setSaving(false);
 
     if (!response.ok || !payload.contact) {
@@ -100,7 +108,7 @@ export function ContactsManager({ initialContacts = defaultContacts }: { initial
     }
 
     setContacts((current) => [createdContact, ...current]);
-    setMessage("Contact saved.");
+    setMessage(payload.message ?? "Contact saved.");
 
     setOpen(false);
     resetForm();
@@ -139,6 +147,11 @@ export function ContactsManager({ initialContacts = defaultContacts }: { initial
                     {contact.isStaff ? (
                       <span className="rounded-full border border-[#7a92ba]/50 bg-[#e7eef8] px-2.5 py-0.5 text-[11px] font-medium text-[#4d678c]">
                         Majestic Staff
+                      </span>
+                    ) : null}
+                    {contact.isMaintenance ? (
+                      <span className="rounded-full border border-[#5a9aaf]/40 bg-[#e5f6fb] px-2.5 py-0.5 text-[11px] font-medium text-[#2f7b84]">
+                        Maintenance: {contact.maintenanceCategory || contact.function}
                       </span>
                     ) : null}
                   </div>
@@ -212,6 +225,50 @@ export function ContactsManager({ initialContacts = defaultContacts }: { initial
               />
               Building personnel
             </label>
+
+            <label className="mt-3 flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={draft.isMaintenance}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    isMaintenance: event.target.checked,
+                    maintenanceCategory: event.target.checked ? current.maintenanceCategory || current.function : ""
+                  }))
+                }
+              />
+              Maintenance contact
+            </label>
+
+            {draft.isMaintenance ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-medium">
+                  <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Maintenance category</span>
+                  <input
+                    value={draft.maintenanceCategory}
+                    onChange={(event) => setDraft((current) => ({ ...current, maintenanceCategory: event.target.value }))}
+                    placeholder="Example: Window cleaning"
+                    className="rounded-lg border border-slate-300 px-3 py-2"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium">
+                  <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Threshold days</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={draft.maintenanceThresholdDays}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        maintenanceThresholdDays: Number(event.target.value) > 0 ? Number(event.target.value) : 1
+                      }))
+                    }
+                    className="rounded-lg border border-slate-300 px-3 py-2"
+                  />
+                </label>
+              </div>
+            ) : null}
 
             {formError ? <p className="mt-3 text-sm text-rose-700">{formError}</p> : null}
 

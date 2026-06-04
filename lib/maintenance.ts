@@ -1,6 +1,13 @@
 import { differenceInCalendarDays, parseISO, startOfDay } from "date-fns";
 import type { MaintenanceNotification, MaintenanceRecord, MaintenanceSummary, MaintenanceType } from "@/lib/types";
 
+export type MaintenanceContactInfo = {
+  name: string;
+  number?: string;
+  email?: string;
+  address?: string;
+};
+
 export function buildMaintenanceSummaries(
   maintenanceTypes: MaintenanceType[],
   maintenanceRecords: MaintenanceRecord[],
@@ -49,8 +56,20 @@ export function getDueMaintenanceTypes(
   });
 }
 
-export function formatMaintenanceAlert(type: MaintenanceType): string {
-  return `Maintenance reminder: please book ${type.name.toLowerCase()}.`;
+export function formatMaintenanceAlert(type: MaintenanceType, contacts: MaintenanceContactInfo[] = []): string {
+  if (contacts.length === 0) {
+    return `Maintenance reminder: please book ${type.name.toLowerCase()}.`;
+  }
+
+  const contactText = contacts
+    .slice(0, 2)
+    .map((contact) => {
+      const details = [contact.number, contact.email, contact.address].filter(Boolean).join(" | ");
+      return details ? `${contact.name} (${details})` : contact.name;
+    })
+    .join("; ");
+
+  return `Maintenance reminder: please book ${type.name.toLowerCase()}. Contact: ${contactText}.`;
 }
 
 export function hasMatchingMaintenanceNotification(

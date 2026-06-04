@@ -1,5 +1,6 @@
 import { buildMaintenanceSummaries } from "@/lib/maintenance";
 import type {
+  MaintenanceThresholdApproval,
   MaintenanceNotification,
   MaintenanceRecord,
   MaintenanceSummary,
@@ -231,6 +232,25 @@ export async function getMaintenanceTypes(): Promise<MaintenanceType[]> {
     return [];
   }
 
+  const { data: maintenanceContacts, error: contactsError } = await supabase
+    .from("info_contacts")
+    .select("role_function,maintenance_category")
+    .eq("is_maintenance", true);
+
+  if (contactsError || !maintenanceContacts) {
+    return [];
+  }
+
+  const activeCategoryNames = new Set(
+    maintenanceContacts
+      .map((entry) => (entry.maintenance_category || entry.role_function || "").trim().toLowerCase())
+      .filter((entry) => entry.length > 0)
+  );
+
+  if (activeCategoryNames.size === 0) {
+    return [];
+  }
+
   const { data, error } = await supabase
     .from("maintenance_types")
     .select("id,name,threshold_days,created_by,created_at")
@@ -240,13 +260,15 @@ export async function getMaintenanceTypes(): Promise<MaintenanceType[]> {
     return [];
   }
 
-  return data.map((entry) => ({
-    id: entry.id,
-    name: entry.name,
-    thresholdDays: entry.threshold_days,
-    createdByUserId: (entry.created_by as string | null) ?? undefined,
-    createdAt: entry.created_at
-  }));
+  return data
+    .filter((entry) => activeCategoryNames.has(entry.name.trim().toLowerCase()))
+    .map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      thresholdDays: entry.threshold_days,
+      createdByUserId: (entry.created_by as string | null) ?? undefined,
+      createdAt: entry.created_at
+    }));
 }
 
 export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
@@ -325,4 +347,47 @@ export async function getMaintenanceNotifications(): Promise<MaintenanceNotifica
 export async function getMaintenanceSummaries(): Promise<MaintenanceSummary[]> {
   const [maintenanceTypes, maintenanceRecords] = await Promise.all([getMaintenanceTypes(), getMaintenanceRecords()]);
   return buildMaintenanceSummaries(maintenanceTypes, maintenanceRecords);
+}
+
+export async function getPendingMaintenanceThresholdApprovals(): Promise<MaintenanceThresholdApproval[]> {
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("maintenance_threshold_approvals")
+    .select(`
+      id,
+      maintenance_type_id,
+      proposed_threshold_days,
+      requested_by,
+      status,
+      decided_by,
+      decided_at,
+      created_at,
+      maintenance_type:maintenance_types!maintenance_threshold_approvals_maintenance_type_id_fkey(name),
+      requester:profiles!maintenance_threshold_approvals_requested_by_fkey(full_name),
+      decider:profiles!maintenance_threshold_approvals_decided_by_fkey(full_name)
+    `)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((entry) => ({
+    id: entry.id,
+    maintenanceTypeId: entry.maintenance_type_id,
+    maintenanceTypeName: ((entry.maintenance_type as unknown as { name: string } | null)?.name) ?? "Unknown",
+    proposedThresholdDays: entry.proposed_threshold_days,
+    requestedByUserId: entry.requested_by,
+    requestedByName: ((entry.requester as unknown as { full_name: string } | null)?.full_name) ?? "Unknown",
+    status: entry.status,
+    decidedByUserId: (entry.decided_by as string | null) ?? undefined,
+    decidedByName: ((entry.decider as unknown as { full_name: string } | null)?.full_name) ?? undefined,
+    decidedAt: (entry.decided_at as string | null) ?? undefined,
+    createdAt: entry.created_at
+  }));
 }

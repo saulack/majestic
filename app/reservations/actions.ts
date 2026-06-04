@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { formatMaintenanceAlert, getDueMaintenanceTypes } from "@/lib/maintenance";
+import { formatMaintenanceAlert, getDueMaintenanceTypes, type MaintenanceContactInfo } from "@/lib/maintenance";
 import type { MaintenanceType } from "@/lib/types";
 
 export type ActionResult = { error?: string; success?: boolean; maintenanceAlerts?: string[] };
@@ -106,6 +106,12 @@ export async function createReservation(params: {
       .order("scheduled_for", { ascending: false })
   ]);
 
+  const { data: maintenanceContactsResult } = await supabase
+    .from("info_contacts")
+    .select("name,number,email,address,role_function,maintenance_category")
+    .eq("is_maintenance", true)
+    .order("name", { ascending: true });
+
   const maintenanceTypes: MaintenanceType[] = !maintenanceTypesResult.error && maintenanceTypesResult.data
     ? maintenanceTypesResult.data.map((entry) => ({
         id: entry.id,
@@ -130,6 +136,24 @@ export async function createReservation(params: {
 
   const dueMaintenanceTypes = getDueMaintenanceTypes(maintenanceTypes, maintenanceRecords, endDate);
 
+  const contactsByTypeName = new Map<string, MaintenanceContactInfo[]>();
+
+  for (const contact of maintenanceContactsResult ?? []) {
+    const category = (contact.maintenance_category || contact.role_function || "").trim().toLowerCase();
+    if (!category) {
+      continue;
+    }
+
+    const existing = contactsByTypeName.get(category) ?? [];
+    existing.push({
+      name: contact.name,
+      number: contact.number || undefined,
+      email: contact.email || undefined,
+      address: contact.address || undefined
+    });
+    contactsByTypeName.set(category, existing);
+  }
+
   if (dueMaintenanceTypes.length > 0) {
     const admin = createAdminClient();
 
@@ -149,7 +173,12 @@ export async function createReservation(params: {
 
   revalidatePath("/reservations");
   revalidatePath("/");
-  return { success: true, maintenanceAlerts: dueMaintenanceTypes.map(formatMaintenanceAlert) };
+  return {
+    success: true,
+    maintenanceAlerts: dueMaintenanceTypes.map((maintenanceType) =>
+      formatMaintenanceAlert(maintenanceType, contactsByTypeName.get(maintenanceType.name.trim().toLowerCase()) ?? [])
+    )
+  };
 }
 
 export async function moderateReservation(

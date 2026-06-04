@@ -92,22 +92,32 @@ export default async function HomePage() {
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {maintenanceSummaries.map((summary) => (
-            <article key={summary.typeId} className={`rounded-xl border px-4 py-3.5 ${summary.needsAttention ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h4 className="text-base font-semibold text-slate-900">{summary.typeName}</h4>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {summary.daysSinceLastMaintenance === null ? "No maintenance logged yet" : `${summary.daysSinceLastMaintenance} days since last maintenance`}
-                  </p>
+          {maintenanceSummaries.map((summary) => {
+            const isOverdue =
+              summary.daysSinceLastMaintenance !== null && summary.daysSinceLastMaintenance >= summary.thresholdDays;
+
+            return (
+              <article key={summary.typeId} className={`rounded-xl border px-4 py-3.5 ${summary.needsAttention ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-base font-semibold text-slate-900">{summary.typeName}</h4>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {summary.daysSinceLastMaintenance === null ? "No maintenance logged yet" : `${summary.daysSinceLastMaintenance} days since last maintenance`}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    {isOverdue ? (
+                      <span className="rounded-full border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">Overdue</span>
+                    ) : null}
+                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${summary.needsAttention ? "border border-amber-300 bg-white text-amber-800" : "border border-[#bde3df] bg-[#f1fbf9] text-[#2f7b84]"}`}>
+                      Threshold {summary.thresholdDays}d
+                    </span>
+                  </div>
                 </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-medium ${summary.needsAttention ? "border border-amber-300 bg-white text-amber-800" : "border border-[#bde3df] bg-[#f1fbf9] text-[#2f7b84]"}`}>
-                  Threshold {summary.thresholdDays}d
-                </span>
-              </div>
-              <p className="mt-2 text-sm text-slate-500">{summary.lastMaintenanceDate ? `Last logged: ${summary.lastMaintenanceDate}` : "Schedule the first maintenance entry."}</p>
-            </article>
-          ))}
+                <p className="mt-2 text-sm text-slate-500">{summary.lastMaintenanceDate ? `Last logged: ${summary.lastMaintenanceDate}` : "Schedule the first maintenance entry."}</p>
+              </article>
+            );
+          })}
         </div>
       </section>
 

@@ -74,6 +74,22 @@ export type MaintenanceSummary = {
   needsAttention: boolean;
 };
 
+export type MaintenanceThresholdApprovalStatus = "pending" | "approved" | "rejected";
+
+export type MaintenanceThresholdApproval = {
+  id: string;
+  maintenanceTypeId: string;
+  maintenanceTypeName: string;
+  proposedThresholdDays: number;
+  requestedByUserId: string;
+  requestedByName: string;
+  status: MaintenanceThresholdApprovalStatus;
+  decidedByUserId?: string;
+  decidedByName?: string;
+  decidedAt?: string;
+  createdAt: string;
+};
+
 export type AdminInvite = {
   token: string;
   email: string;

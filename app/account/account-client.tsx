@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BiometricAuthManager } from "@/app/account/biometric-auth-manager";
 import { PasswordManager } from "@/app/account/password-manager";
+import { createClient } from "@/lib/supabase/client";
 import type { AppRole, NotificationPreference, UserProfile } from "@/lib/types";
 
 export function AccountClientPage({
@@ -21,8 +22,34 @@ export function AccountClientPage({
   const [email, setEmail] = useState(user.email);
   const [profileStatus, setProfileStatus] = useState("");
   const [profileBusy, setProfileBusy] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const [logoutStatus, setLogoutStatus] = useState("");
   const emailEnabled = preferences?.channels.includes("email") ?? false;
   const smsEnabled = preferences?.channels.includes("sms") ?? false;
+
+  async function handleLogout() {
+    setLogoutBusy(true);
+    setLogoutStatus("");
+
+    const supabase = createClient();
+
+    if (!supabase) {
+      setLogoutBusy(false);
+      setLogoutStatus("Sign out failed: app is not configured.");
+      return;
+    }
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      setLogoutBusy(false);
+      setLogoutStatus(error.message || "Sign out failed.");
+      return;
+    }
+
+    router.replace("/login");
+    router.refresh();
+  }
 
   async function saveProfile() {
     setProfileBusy(true);
@@ -45,8 +72,23 @@ export function AccountClientPage({
   return (
     <AppShell initialRole={user.role} initialPreviewRole={previewRole}>
       <section className="card relative overflow-hidden p-5 sm:p-6">
-        <h2 className="text-xl sm:text-2xl">My Account</h2>
-        <p className="mt-2 text-sm text-slate-600">Edit your profile details and notification preferences.</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl sm:text-2xl">My Account</h2>
+            <p className="mt-2 text-sm text-slate-600">Edit your profile details and notification preferences.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              void handleLogout();
+            }}
+            disabled={logoutBusy}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {logoutBusy ? "Signing out..." : "Log out"}
+          </button>
+        </div>
+        {logoutStatus ? <p className="mt-3 text-sm text-rose-700">{logoutStatus}</p> : null}
 
         <div className="mt-6 grid gap-5 sm:gap-6 lg:grid-cols-2">
           <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
