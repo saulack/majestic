@@ -2,8 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { formatMaintenanceAlert, getDueMaintenanceTypes } from "@/lib/maintenance";
+import type { MaintenanceType } from "@/lib/types";
 
-export type ActionResult = { error?: string; success?: boolean };
+export type ActionResult = { error?: string; success?: boolean; maintenanceAlerts?: string[] };
 
 export async function createReservation(params: {
   startDate: string;
@@ -15,8 +18,7 @@ export async function createReservation(params: {
 }): Promise<ActionResult> {
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
-    // Supabase not configured — mock mode
-    return { success: true };
+    return { error: "Supabase is not configured on the server." };
   }
 
   const {
@@ -56,21 +58,82 @@ export async function createReservation(params: {
     }
   }
 
-  const { error: insertError } = await supabase.from("reservations").insert({
-    user_id: bookedForUserId,
-    created_by: user.id,
-    start_date: startDate,
-    end_date: endDate,
-    notes: notes.trim() || null,
-    status: approvalEnabled ? "pending" : "approved"
-  });
+  const { data: insertedReservation, error: insertError } = await supabase
+    .from("reservations")
+    .insert({
+      user_id: bookedForUserId,
+      created_by: user.id,
+      start_date: startDate,
+      end_date: endDate,
+      notes: notes.trim() || null,
+      status: approvalEnabled ? "pending" : "approved"
+    })
+    .select("id,user_id,start_date,end_date")
+    .single();
 
-  if (insertError) {
+  if (insertError || !insertedReservation) {
     return { error: insertError.message };
   }
 
+  const [maintenanceTypesResult, maintenanceRecordsResult] = await Promise.all([
+    supabase.from("maintenance_types").select("id,name,threshold_days,created_by,created_at").order("name", { ascending: true }),
+    supabase
+      .from("maintenance_records")
+      .select(`
+        id,
+        scheduled_for,
+        created_by,
+        created_at,
+        maintenance_type:maintenance_types!maintenance_records_maintenance_type_id_fkey(id,name),
+        creator:profiles!maintenance_records_created_by_fkey(full_name)
+      `)
+      .order("scheduled_for", { ascending: false })
+  ]);
+
+  const maintenanceTypes: MaintenanceType[] = !maintenanceTypesResult.error && maintenanceTypesResult.data
+    ? maintenanceTypesResult.data.map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        thresholdDays: entry.threshold_days,
+        createdByUserId: (entry.created_by as string | null) ?? undefined,
+        createdAt: entry.created_at
+      }))
+    : [];
+
+  const maintenanceRecords = !maintenanceRecordsResult.error && maintenanceRecordsResult.data
+    ? maintenanceRecordsResult.data.map((entry) => ({
+        id: entry.id,
+        typeId: (entry.maintenance_type as unknown as { id: string; name: string } | null)?.id ?? "",
+        typeName: (entry.maintenance_type as unknown as { id: string; name: string } | null)?.name ?? "Unknown",
+        scheduledFor: entry.scheduled_for,
+        createdByUserId: entry.created_by,
+        createdByName: ((entry.creator as unknown as { full_name: string } | null)?.full_name) ?? "Unknown",
+        createdAt: entry.created_at
+      }))
+    : [];
+
+  const dueMaintenanceTypes = getDueMaintenanceTypes(maintenanceTypes, maintenanceRecords, endDate);
+
+  if (dueMaintenanceTypes.length > 0) {
+    const admin = createAdminClient();
+
+    if (admin) {
+      await admin.from("maintenance_notifications").insert(
+        dueMaintenanceTypes.map((maintenanceType) => ({
+          maintenance_type_id: maintenanceType.id,
+          reservation_id: insertedReservation.id,
+          notified_user_id: insertedReservation.user_id,
+          reservation_start_date: insertedReservation.start_date,
+          reservation_end_date: insertedReservation.end_date,
+          triggered_on: insertedReservation.end_date
+        }))
+      );
+    }
+  }
+
   revalidatePath("/reservations");
-  return { success: true };
+  revalidatePath("/");
+  return { success: true, maintenanceAlerts: dueMaintenanceTypes.map(formatMaintenanceAlert) };
 }
 
 export async function moderateReservation(
@@ -84,7 +147,7 @@ export async function moderateReservation(
 
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
-    return { success: true };
+    return { error: "Supabase is not configured on the server." };
   }
 
   const {
@@ -137,5 +200,53 @@ export async function moderateReservation(
   }
 
   revalidatePath("/reservations");
+  return { success: true };
+}
+
+export async function deleteReservation(reservationId: string): Promise<ActionResult> {
+  const targetId = reservationId.trim();
+
+  if (!targetId) {
+    return { error: "Reservation id is required." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return { error: "Supabase is not configured on the server." };
+  }
+
+  const {
+    data: { user },
+    error: authError
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { error: "You must be signed in." };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profileError || !profile || profile.role !== "superadmin") {
+    return { error: "Only superadmin can delete reservations." };
+  }
+
+  const admin = createAdminClient();
+  if (!admin) {
+    return { error: "Supabase is not configured on the server." };
+  }
+
+  const { error: deleteError } = await admin.from("reservations").delete().eq("id", targetId);
+
+  if (deleteError) {
+    return { error: deleteError.message };
+  }
+
+  revalidatePath("/reservations");
+  revalidatePath("/");
+  revalidatePath("/stats");
   return { success: true };
 }

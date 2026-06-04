@@ -24,11 +24,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
+  const { error: reservationsDeleteError } = await admin.from("reservations").delete().eq("user_id", userId);
+
+  if (reservationsDeleteError) {
+    return NextResponse.json({ error: reservationsDeleteError.message }, { status: 400 });
+  }
+
   const { error } = await admin.auth.admin.deleteUser(userId);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ mode: "live", message: "User deleted." });
+  return NextResponse.json({ mode: "live", message: "User deleted and their reservations removed." });
 }

@@ -2,11 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState, type PropsWithChildren } from "react";
-import { CalendarDays, ChartColumnBig, Home, ShieldCheck, UserRound, Info } from "lucide-react";
-import { currentUser } from "@/lib/mock-data";
-import { isSuperadmin } from "@/lib/rbac";
+import { CalendarDays, ChartColumnBig, Home, ShieldCheck, UserRound, Info, Wrench } from "lucide-react";
 import { RolePreviewRestore } from "@/components/role-preview-restore";
-import { getEffectiveUser, readRolePreviewFromBrowser } from "@/lib/role-preview";
+import { getEffectiveRole, readRolePreviewFromBrowser } from "@/lib/role-preview";
 import { createClient } from "@/lib/supabase/client";
 import { readLocalAuthSnapshot } from "@/lib/local-auth";
 import type { AppRole } from "@/lib/types";
@@ -15,8 +13,9 @@ export function AppShell({ children }: PropsWithChildren) {
   const [authReady, setAuthReady] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [previewRole, setPreviewRole] = useState<Extract<AppRole, "admin" | "user"> | null>(null);
+  const [baseRole, setBaseRole] = useState<AppRole>("user");
 
-  const effectiveUser = getEffectiveUser(currentUser, previewRole);
+  const effectiveRole = getEffectiveRole(baseRole, previewRole);
 
   useEffect(() => {
     void (async () => {
@@ -32,6 +31,14 @@ export function AppShell({ children }: PropsWithChildren) {
 
       const { data } = await supabase.auth.getUser();
       setAuthenticated(Boolean(data.user) || localAuth.sessionActive);
+
+      if (data.user) {
+        const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.user.id).maybeSingle();
+        if (profile?.role) {
+          setBaseRole(profile.role as AppRole);
+        }
+      }
+
       setAuthReady(true);
     })();
   }, []);
@@ -65,9 +72,10 @@ export function AppShell({ children }: PropsWithChildren) {
           <NavItem href="/" label="Home" icon={<Home className="h-4 w-4" />} />
           <NavItem href="/reservations" label="Reservations" icon={<CalendarDays className="h-4 w-4" />} />
           <NavItem href="/stats" label="Stats" icon={<ChartColumnBig className="h-4 w-4" />} />
+          <NavItem href="/maintenance" label="Maintenance" icon={<Wrench className="h-4 w-4" />} />
           <NavItem href="/info" label="Info" icon={<Info className="h-4 w-4" />} />
           <NavItem href="/account" label="Account" icon={<UserRound className="h-4 w-4" />} />
-          {isSuperadmin(effectiveUser) ? <NavItem href="/admin" label="Admin" icon={<ShieldCheck className="h-4 w-4" />} /> : null}
+          {effectiveRole === "superadmin" ? <NavItem href="/admin" label="Admin" icon={<ShieldCheck className="h-4 w-4" />} /> : null}
         </nav>
       </header>
       <main className="mx-auto w-full max-w-6xl px-4 pb-12 sm:px-6 sm:pb-16">{children}</main>

@@ -14,21 +14,22 @@ import {
   subMonths
 } from "date-fns";
 import { CheckCircle2, ChevronLeft, ChevronRight, Clock, XCircle } from "lucide-react";
-import { currentUser, mockUsers } from "@/lib/mock-data";
 import { canModerateReservation } from "@/lib/rbac";
 import { hasDateConflict, totalDaysInReservation } from "@/lib/reservation-utils";
-import { createReservation, moderateReservation } from "@/app/reservations/actions";
+import { createReservation, deleteReservation, moderateReservation } from "@/app/reservations/actions";
 import { ActivityLog } from "@/components/activity-log";
 import { ToggleSwitch } from "@/components/toggle-switch";
 import { parseHolidayLabel } from "@/lib/reservation-holiday-utils";
 import type { HolidayMap } from "@/lib/holidays";
-import type { Reservation, UserProfile } from "@/lib/types";
+import type { MaintenanceNotification, MaintenanceRecord, Reservation, UserProfile } from "@/lib/types";
 
 type Props = {
   reservations: Reservation[];
+  maintenanceRecords: MaintenanceRecord[];
+  maintenanceNotifications: MaintenanceNotification[];
   holidayMap: HolidayMap;
-  users?: UserProfile[];
-  actingUser?: UserProfile;
+  users: UserProfile[];
+  actingUser: UserProfile;
   approvalsEnabled: boolean;
 };
 
@@ -54,7 +55,15 @@ function normalizeRange(first: string, second: string) {
   return compareAsc(parseISO(first), parseISO(second)) <= 0 ? [first, second] : [second, first];
 }
 
-export function MonthlyReservationsCalendar({ reservations, holidayMap, users = mockUsers, actingUser = currentUser, approvalsEnabled }: Props) {
+export function MonthlyReservationsCalendar({
+  reservations,
+  maintenanceRecords,
+  maintenanceNotifications,
+  holidayMap,
+  users,
+  actingUser,
+  approvalsEnabled
+}: Props) {
   const [monthCursor, setMonthCursor] = useState(startOfMonth(new Date()));
   const [reservationMode, setReservationMode] = useState<"self" | "other">("self");
   const [selectedUserId, setSelectedUserId] = useState(actingUser.id);
@@ -68,6 +77,7 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
   const [isPending, startTransition] = useTransition();
   const [declineTargetId, setDeclineTargetId] = useState<string | null>(null);
   const [declineReasonText, setDeclineReasonText] = useState("");
+  const canDeleteAnyReservation = actingUser.role === "superadmin";
 
   const monthStart = startOfMonth(monthCursor);
   const calendarStart = startOfWeek(monthStart);
@@ -206,7 +216,10 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
       } else {
         setFormMessage({
           type: "success",
-          text: approvalsEnabled ? "Reservation submitted for approval." : "Reservation booked."
+          text: [
+            approvalsEnabled ? "Reservation submitted for approval." : "Reservation booked.",
+            ...(result.maintenanceAlerts ?? [])
+          ].join(" ")
         });
         clearSelection();
       }
@@ -236,6 +249,28 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
         setFormMessage({ type: "success", text: "Reservation declined." });
         setDeclineTargetId(null);
         setDeclineReasonText("");
+      }
+    });
+  }
+
+  function handleDeleteReservation(reservationId: string) {
+    if (!canDeleteAnyReservation) {
+      setFormMessage({ type: "error", text: "Only superadmin can delete reservations." });
+      return;
+    }
+
+    const confirmed = window.confirm("Delete this reservation? This cannot be undone.");
+    if (!confirmed) {
+      return;
+    }
+
+    setFormMessage(null);
+    startTransition(async () => {
+      const result = await deleteReservation(reservationId);
+      if (result.error) {
+        setFormMessage({ type: "error", text: result.error });
+      } else {
+        setFormMessage({ type: "success", text: "Reservation deleted." });
       }
     });
   }
@@ -504,14 +539,25 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
               ? `Active range: ${activeStart || "-"} to ${activeEnd || "-"} · overlap allowed`
               : `Active range: ${activeStart || "-"} to ${activeEnd || "-"}`}
           </p>
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={handleSave}
-            className="rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-50"
-          >
-            {isPending ? "Reserving..." : approvalsEnabled ? "Reserve dates (submit for approval)" : "Reserve dates"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {activeStart && activeEnd ? (
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-700"
+              >
+                Clear selection
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={handleSave}
+              className="rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-50"
+            >
+              {isPending ? "Reserving..." : approvalsEnabled ? "Reserve dates (submit for approval)" : "Reserve dates"}
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
@@ -523,34 +569,37 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
           </span>
         </div>
 
-        {approvalsEnabled ? (
-          <div className="mt-6 grid gap-4">
-            <h3 className="text-lg sm:text-xl">Reservation Requests</h3>
-            <p className="text-sm text-slate-600">Approvals are active from the admin portal.</p>
+        <div className="mt-6 grid gap-4">
+          <h3 className="text-lg sm:text-xl">Reservations</h3>
+          <p className="text-sm text-slate-600">
+            {approvalsEnabled
+              ? "Approvals are active from the admin portal."
+              : "Approvals are paused from the admin portal. Reservations book directly."}
+          </p>
 
-            <div className="grid gap-4">
-              {reservations.map((reservation) => {
-                const owner = users.find((u) => u.id === reservation.userId) ?? actingUser;
-                const canModerate = canModerateReservation(actingUser, owner, reservation);
-                const msg = reservation.status === "approved" ? "Booked" : reservation.status === "declined" ? "Declined" : "Pending";
+          <div className="grid gap-4">
+            {reservations.map((reservation) => {
+              const owner = users.find((u) => u.id === reservation.userId) ?? actingUser;
+              const canModerate = canModerateReservation(actingUser, owner, reservation);
+              const msg = reservation.status === "approved" ? "Booked" : reservation.status === "declined" ? "Declined" : "Pending";
 
-                return (
-                  <article key={reservation.id} className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h4 className="text-sm font-semibold sm:text-base">{reservation.userName}</h4>
-                        <p className="mt-0.5 text-sm text-slate-600">
-                          {reservation.startDate} to {reservation.endDate}
-                          <span className="ml-2 text-slate-400">· {totalDaysInReservation(reservation)} nights</span>
-                        </p>
-                        {reservation.notes ? <p className="mt-1 text-sm text-slate-500">{reservation.notes}</p> : null}
-                      </div>
-
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${reservation.status === "approved" ? statusConfig.approved.cls : reservation.status === "declined" ? statusConfig.declined.cls : statusConfig.pending.cls}`}>
-                        {reservation.status === "approved" ? statusConfig.approved.icon : reservation.status === "declined" ? statusConfig.declined.icon : statusConfig.pending.icon}
-                        {msg}
-                      </span>
+              return (
+                <article key={reservation.id} className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-semibold sm:text-base">{reservation.userName}</h4>
+                      <p className="mt-0.5 text-sm text-slate-600">
+                        {reservation.startDate} to {reservation.endDate}
+                        <span className="ml-2 text-slate-400">· {totalDaysInReservation(reservation)} nights</span>
+                      </p>
+                      {reservation.notes ? <p className="mt-1 text-sm text-slate-500">{reservation.notes}</p> : null}
                     </div>
+
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${reservation.status === "approved" ? statusConfig.approved.cls : reservation.status === "declined" ? statusConfig.declined.cls : statusConfig.pending.cls}`}>
+                      {reservation.status === "approved" ? statusConfig.approved.icon : reservation.status === "declined" ? statusConfig.declined.icon : statusConfig.pending.icon}
+                      {msg}
+                    </span>
+                  </div>
 
                     {reservation.status === "declined" && reservation.declineReason ? (
                       <div className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">
@@ -563,8 +612,9 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
                       <p className="mt-2 text-xs text-emerald-700">Approved by {reservation.reviewedByName}</p>
                     ) : null}
 
-                    {canModerate && reservation.status === "pending" && declineTargetId !== reservation.id ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
+                  {((canModerate && approvalsEnabled && reservation.status === "pending") || canDeleteAnyReservation) && declineTargetId !== reservation.id ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {canModerate && approvalsEnabled && reservation.status === "pending" ? (
                         <button
                           type="button"
                           disabled={isPending}
@@ -573,6 +623,8 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
                         >
                           Approve
                         </button>
+                      ) : null}
+                      {canModerate && approvalsEnabled && reservation.status === "pending" ? (
                         <button
                           type="button"
                           onClick={() => {
@@ -583,10 +635,21 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
                         >
                           Deny
                         </button>
-                      </div>
-                    ) : null}
+                      ) : null}
+                      {canDeleteAnyReservation ? (
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => handleDeleteReservation(reservation.id)}
+                          className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs text-rose-700 disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
 
-                    {canModerate && reservation.status === "pending" && declineTargetId === reservation.id ? (
+                  {canModerate && approvalsEnabled && reservation.status === "pending" && declineTargetId === reservation.id ? (
                       <div className="mt-3 grid gap-2">
                         <label className="text-xs font-medium text-slate-700">
                           Reason for denial <span className="text-rose-600">*</span>
@@ -619,20 +682,21 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
                           </button>
                         </div>
                       </div>
-                    ) : null}
-                  </article>
-                );
-              })}
-            </div>
+                  ) : null}
+                </article>
+              );
+            })}
           </div>
-        ) : (
-          <p className="mt-6 text-sm text-slate-500">
-            Approval workflow is currently paused in the admin portal. Reservations are booked directly.
-          </p>
-        )}
+        </div>
       </section>
 
-      <ActivityLog reservations={reservations} holidayMap={holidayMap} approvalsEnabled={approvalsEnabled} />
+      <ActivityLog
+        reservations={reservations}
+        maintenanceRecords={maintenanceRecords}
+        maintenanceNotifications={maintenanceNotifications}
+        holidayMap={holidayMap}
+        approvalsEnabled={approvalsEnabled}
+      />
     </div>
   );
 }

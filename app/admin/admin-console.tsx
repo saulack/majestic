@@ -3,35 +3,42 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ToggleSwitch } from "@/components/toggle-switch";
-import { currentUser } from "@/lib/mock-data";
 import { clearRolePreviewInBrowser, setRolePreviewInBrowser } from "@/lib/role-preview";
-import type { UserProfile } from "@/lib/types";
+import type { MaintenanceType, UserProfile } from "@/lib/types";
 
 type ApiResult = {
   message?: string;
   error?: string;
-  mode?: "mock" | "live";
+  mode?: "live";
   enabled?: boolean;
   inviteUrl?: string;
+  maintenanceType?: MaintenanceType;
 };
 
 export function AdminConsole({
   initialApprovalsEnabled,
   initialHomepageReservationCount,
-  initialUsers
+  initialMaintenanceTypes,
+  initialUsers,
+  currentUserId
 }: {
   initialApprovalsEnabled: boolean;
   initialHomepageReservationCount: number;
+  initialMaintenanceTypes: MaintenanceType[];
   initialUsers: UserProfile[];
+  currentUserId: string;
 }) {
   const router = useRouter();
   const [result, setResult] = useState<ApiResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [approvalsEnabled, setApprovalsEnabled] = useState(initialApprovalsEnabled);
   const [homepageReservationCount, setHomepageReservationCount] = useState(initialHomepageReservationCount);
+  const [maintenanceTypes, setMaintenanceTypes] = useState(initialMaintenanceTypes);
   const [users, setUsers] = useState(initialUsers);
   const [manualInviteStatus, setManualInviteStatus] = useState("");
   const [manualInviteLink, setManualInviteLink] = useState("");
+  const [newMaintenanceTypeName, setNewMaintenanceTypeName] = useState("");
+  const [newMaintenanceThresholdDays, setNewMaintenanceThresholdDays] = useState(30);
 
   async function postJson(path: string, body: Record<string, string | boolean | number>): Promise<ApiResult> {
     setLoading(true);
@@ -162,6 +169,106 @@ export function AdminConsole({
         </form>
       </div>
 
+      <div className="card p-5 sm:p-6 lg:col-span-2">
+        <h2 className="text-xl sm:text-2xl">Maintenance Types</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Add maintenance categories and set how many days can pass before a booking should trigger a reminder.
+        </p>
+
+        <form
+          className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1.5fr_180px_auto]"
+          onSubmit={(event) => {
+            event.preventDefault();
+
+            void (async () => {
+              const response = await postJson("/api/admin/maintenance-types", {
+                name: newMaintenanceTypeName,
+                thresholdDays: newMaintenanceThresholdDays
+              });
+
+              if (!response.error && response.maintenanceType) {
+                setMaintenanceTypes((current) => [...current, response.maintenanceType!].sort((left, right) => left.name.localeCompare(right.name)));
+                setNewMaintenanceTypeName("");
+                setNewMaintenanceThresholdDays(30);
+              }
+            })();
+          }}
+        >
+          <label className="grid gap-1.5 text-sm font-medium">
+            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">New type</span>
+            <input
+              value={newMaintenanceTypeName}
+              onChange={(event) => setNewMaintenanceTypeName(event.target.value)}
+              placeholder="Example: Deep cleaning"
+              className="rounded-lg border border-slate-300 px-3 py-2"
+              required
+            />
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium">
+            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Threshold days</span>
+            <input
+              type="number"
+              min={1}
+              value={newMaintenanceThresholdDays}
+              onChange={(event) => setNewMaintenanceThresholdDays(Number(event.target.value))}
+              className="rounded-lg border border-slate-300 px-3 py-2"
+              required
+            />
+          </label>
+          <div className="flex items-end">
+            <button disabled={loading} type="submit" className="rounded-lg bg-amber-700 px-4 py-2 text-white">
+              Add type
+            </button>
+          </div>
+        </form>
+
+        <div className="mt-4 grid gap-3">
+          {maintenanceTypes.map((maintenanceType) => (
+            <form
+              key={maintenanceType.id}
+              className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+
+                void (async () => {
+                  const thresholdDays = Number(form.get(`threshold-${maintenanceType.id}`) ?? maintenanceType.thresholdDays);
+                  const response = await postJson("/api/admin/maintenance-threshold", {
+                    maintenanceTypeId: maintenanceType.id,
+                    thresholdDays
+                  });
+
+                  if (!response.error) {
+                    setMaintenanceTypes((current) =>
+                      current.map((entry) => (entry.id === maintenanceType.id ? { ...entry, thresholdDays } : entry))
+                    );
+                  }
+                })();
+              }}
+            >
+              <div className="min-w-52 flex-1">
+                <p className="text-sm font-semibold text-slate-900">{maintenanceType.name}</p>
+                <p className="mt-1 text-xs text-slate-500">Users are reminded when a reservation extends beyond this maintenance interval.</p>
+              </div>
+              <label className="grid gap-1.5 text-sm font-medium">
+                <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Threshold days</span>
+                <input
+                  name={`threshold-${maintenanceType.id}`}
+                  type="number"
+                  min={1}
+                  defaultValue={maintenanceType.thresholdDays}
+                  className="w-32 rounded-lg border border-slate-300 px-3 py-2"
+                  required
+                />
+              </label>
+              <button disabled={loading} type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700">
+                Save threshold
+              </button>
+            </form>
+          ))}
+        </div>
+      </div>
+
       <div className="card p-5 sm:p-6">
         <h2 className="text-xl sm:text-2xl">Invite Center</h2>
         <p className="mt-2 text-sm text-slate-600">Create a shareable invite link. The recipient will provide name, email, and password during registration.</p>
@@ -266,7 +373,7 @@ export function AdminConsole({
                   {user.forcePasswordReset ? <p className="mt-1 text-xs text-rose-700">Password reset required on next login.</p> : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  {user.role !== "superadmin" && user.id !== currentUser.id ? (
+                  {user.role !== "superadmin" && user.id !== currentUserId ? (
                     <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                       <span className="text-xs font-medium text-slate-600">Admin access</span>
                       <ToggleSwitch
@@ -293,7 +400,7 @@ export function AdminConsole({
                     <span className="rounded-full border border-[#bde3df] bg-[#f1fbf9] px-2.5 py-1 text-xs font-medium text-[#2f7b84]">Superadmin</span>
                   ) : null}
 
-                  {user.id !== currentUser.id ? (
+                  {user.id !== currentUserId ? (
                     <button
                       type="button"
                       disabled={loading}

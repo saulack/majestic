@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type ProfileBody = {
   fullName?: string;
@@ -30,13 +31,39 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Full name and email are required." }, { status: 400 });
   }
 
-  const { error: profileError } = await supabase
+  const { data: updatedProfile, error: profileError } = await supabase
     .from("profiles")
     .update({ full_name: fullName, email })
-    .eq("id", user.id);
+    .eq("id", user.id)
+    .select("id")
+    .maybeSingle();
 
   if (profileError) {
     return NextResponse.json({ error: profileError.message }, { status: 400 });
+  }
+
+  if (!updatedProfile) {
+    const admin = createAdminClient();
+
+    if (!admin) {
+      return NextResponse.json(
+        { error: "Profile row is missing and admin client is not configured." },
+        { status: 500 }
+      );
+    }
+
+    const { error: upsertProfileError } = await admin.from("profiles").upsert(
+      {
+        id: user.id,
+        full_name: fullName,
+        email
+      },
+      { onConflict: "id" }
+    );
+
+    if (upsertProfileError) {
+      return NextResponse.json({ error: upsertProfileError.message }, { status: 400 });
+    }
   }
 
   if (user.email !== email) {

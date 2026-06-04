@@ -34,6 +34,46 @@ export type NotificationPreference = {
   channels: ChannelPreference[];
 };
 
+export type MaintenanceType = {
+  id: string;
+  name: string;
+  thresholdDays: number;
+  createdByUserId?: string;
+  createdAt: string;
+};
+
+export type MaintenanceRecord = {
+  id: string;
+  typeId: string;
+  typeName: string;
+  scheduledFor: string;
+  createdByUserId: string;
+  createdByName: string;
+  createdAt: string;
+};
+
+export type MaintenanceNotification = {
+  id: string;
+  typeId: string;
+  typeName: string;
+  notifiedUserId: string;
+  notifiedUserName: string;
+  reservationId?: string;
+  reservationStartDate: string;
+  reservationEndDate: string;
+  triggeredOn: string;
+  createdAt: string;
+};
+
+export type MaintenanceSummary = {
+  typeId: string;
+  typeName: string;
+  thresholdDays: number;
+  lastMaintenanceDate?: string;
+  daysSinceLastMaintenance: number | null;
+  needsAttention: boolean;
+};
+
 export type AdminInvite = {
   token: string;
   email: string;

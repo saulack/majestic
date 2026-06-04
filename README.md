@@ -13,9 +13,9 @@ A high-end apartment booking app starter for Vercel + Supabase.
 - Superadmin account management area for create/delete users, plus admin signup URL generation in Settings
 - Date conflict detection utility for overlapping bookings
 - Notification preference center (email, SMS, WhatsApp)
+- Maintenance scheduling with configurable superadmin-managed maintenance types and reminder thresholds
 - Yearly stats page with charted total visit days per user
 - Supabase SQL migration with RLS policies
-- Mock data fallback when env variables are missing
 
 ## Quick start
 
@@ -76,6 +76,5 @@ You can postpone notification setup. The app works on free Supabase without thes
 
 ## Notes
 
-- Current UI uses mock data for immediate local use.
 - API endpoints for admin management are in app/api/admin/*.
 - Supabase Auth already enforces one account per email, and profiles(email) has a unique index.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BiometricAuthManager } from "@/app/account/biometric-auth-manager";
 import { PasswordManager } from "@/app/account/password-manager";
@@ -13,6 +14,7 @@ export function AccountClientPage({
   user: UserProfile;
   preferences?: NotificationPreference;
 }) {
+  const router = useRouter();
   const [fullName, setFullName] = useState(user.fullName);
   const [email, setEmail] = useState(user.email);
   const [profileStatus, setProfileStatus] = useState("");
@@ -32,6 +34,9 @@ export function AccountClientPage({
 
     const payload = (await response.json()) as { message?: string; error?: string };
     setProfileBusy(false);
+    if (response.ok) {
+      router.refresh();
+    }
     setProfileStatus(payload.error ?? payload.message ?? "Profile update complete.");
   }
 

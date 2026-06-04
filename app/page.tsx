@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { compareAsc, format, parseISO } from "date-fns";
 import { AppShell } from "@/components/app-shell";
-import { currentUser, mockReservations } from "@/lib/mock-data";
+import { getAllReservations, getAuthenticatedUserProfile, getMaintenanceSummaries } from "@/lib/live-data";
 import { getNumberAppSetting } from "@/lib/app-settings";
 import { getReservationApprovalsEnabled, HOMEPAGE_RESERVATIONS_COUNT_KEY } from "@/lib/feature-flags";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
 import { isAdminLike } from "@/lib/rbac";
 import type { Reservation } from "@/lib/types";
@@ -14,13 +15,20 @@ const DEFAULT_HOME_RESERVATION_COUNT = 5;
 export default async function HomePage() {
   const cookieStore = await cookies();
   const previewRole = getRolePreviewFromCookieValue(cookieStore.get("majestic-role-preview")?.value ?? null);
-  const actingUser = getEffectiveUser(currentUser, previewRole);
+  const profile = await getAuthenticatedUserProfile();
+
+  if (!profile) {
+    redirect("/login");
+  }
+
+  const actingUser = getEffectiveUser(profile, previewRole);
   const adminLike = isAdminLike(actingUser);
   const upcomingReservationCount = await getNumberAppSetting(HOMEPAGE_RESERVATIONS_COUNT_KEY, DEFAULT_HOME_RESERVATION_COUNT);
   const approvalsEnabled = await getReservationApprovalsEnabled();
+  const [reservations, maintenanceSummaries] = await Promise.all([getAllReservations(), getMaintenanceSummaries()]);
   const normalizedReservations: Reservation[] = approvalsEnabled
-    ? mockReservations
-    : mockReservations.map((reservation) =>
+    ? reservations
+    : reservations.map((reservation) =>
         reservation.status === "pending"
           ? {
               ...reservation,
@@ -56,7 +64,7 @@ export default async function HomePage() {
             </p>
           </div>
           <div className="grid gap-3 p-5 sm:grid-cols-3 sm:gap-4 sm:p-6">
-            <Metric label={adminLike ? "Visible reservations" : "My reservations"} value={String(adminLike ? mockReservations.length : myReservations.length)} />
+            <Metric label={adminLike ? "Visible reservations" : "My reservations"} value={String(adminLike ? reservations.length : myReservations.length)} />
             <Metric label={adminLike ? requestMetricLabel : "Your next stay"} value={adminLike ? String(requestMetricValue) : myNextStay?.startDate ?? "-"} />
             <Metric label={adminLike ? "Current role" : "Notification channels"} value={adminLike ? actingUser.role : "Email, SMS, WhatsApp"} />
           </div>
@@ -69,6 +77,37 @@ export default async function HomePage() {
             <Action href="/reservations" title={adminLike ? "Manage requests" : "View reservations"} subtitle={adminLike ? "Review approvals, denials, and notes" : "See your stays and booking calendar"} />
             <Action href="/stats" title="View personal stats" subtitle="Track your own stays and nights" />
           </div>
+        </div>
+      </section>
+
+      <section className="card mt-5 p-5 sm:mt-6 sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.28em] text-[#2f7b84]">Maintenance status</p>
+            <h3 className="mt-2 text-xl sm:text-2xl">Days Since Last Maintenance</h3>
+          </div>
+          <Link href="/maintenance" className="text-sm font-medium text-amber-700 hover:text-amber-800">
+            Open maintenance
+          </Link>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {maintenanceSummaries.map((summary) => (
+            <article key={summary.typeId} className={`rounded-xl border px-4 py-3.5 ${summary.needsAttention ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h4 className="text-base font-semibold text-slate-900">{summary.typeName}</h4>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {summary.daysSinceLastMaintenance === null ? "No maintenance logged yet" : `${summary.daysSinceLastMaintenance} days since last maintenance`}
+                  </p>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-xs font-medium ${summary.needsAttention ? "border border-amber-300 bg-white text-amber-800" : "border border-[#bde3df] bg-[#f1fbf9] text-[#2f7b84]"}`}>
+                  Threshold {summary.thresholdDays}d
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-slate-500">{summary.lastMaintenanceDate ? `Last logged: ${summary.lastMaintenanceDate}` : "Schedule the first maintenance entry."}</p>
+            </article>
+          ))}
         </div>
       </section>
 

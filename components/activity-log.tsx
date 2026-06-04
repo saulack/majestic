@@ -2,18 +2,20 @@
 
 import { useMemo, useState } from "react";
 import { addMonths, format, formatDistanceToNow, parseISO, startOfMonth, subMonths } from "date-fns";
-import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, XCircle } from "lucide-react";
+import { BellRing, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, XCircle } from "lucide-react";
 import { totalDaysInReservation } from "@/lib/reservation-utils";
 import { getHolidayLabelsInRange, summarizeHolidayLabels } from "@/lib/reservation-holiday-utils";
 import type { HolidayMap } from "@/lib/holidays";
-import type { Reservation } from "@/lib/types";
+import type { MaintenanceNotification, MaintenanceRecord, Reservation } from "@/lib/types";
 
 type LogEntry = {
   id: string;
-  type: "created" | "approved" | "declined";
+  type: "created" | "approved" | "declined" | "maintenance-scheduled" | "maintenance-notified";
   userName: string;
   createdByName?: string;
   reviewerName?: string;
+  maintenanceTypeName?: string;
+  scheduledFor?: string;
   startDate: string;
   endDate: string;
   declineReason?: string;
@@ -22,7 +24,13 @@ type LogEntry = {
   holidaySummary?: string;
 };
 
-function buildLogEntries(reservations: Reservation[], holidayMap: HolidayMap, approvalsEnabled: boolean): LogEntry[] {
+function buildLogEntries(
+  reservations: Reservation[],
+  maintenanceRecords: MaintenanceRecord[],
+  maintenanceNotifications: MaintenanceNotification[],
+  holidayMap: HolidayMap,
+  approvalsEnabled: boolean
+): LogEntry[] {
   const entries: LogEntry[] = [];
 
   for (const reservation of reservations) {
@@ -56,6 +64,33 @@ function buildLogEntries(reservations: Reservation[], holidayMap: HolidayMap, ap
     }
   }
 
+  for (const record of maintenanceRecords) {
+    entries.push({
+      id: `${record.id}-maintenance-scheduled`,
+      type: "maintenance-scheduled",
+      userName: record.createdByName,
+      maintenanceTypeName: record.typeName,
+      scheduledFor: record.scheduledFor,
+      startDate: record.scheduledFor,
+      endDate: record.scheduledFor,
+      timestamp: record.createdAt,
+      nights: 0
+    });
+  }
+
+  for (const notification of maintenanceNotifications) {
+    entries.push({
+      id: `${notification.id}-maintenance-notified`,
+      type: "maintenance-notified",
+      userName: notification.notifiedUserName,
+      maintenanceTypeName: notification.typeName,
+      startDate: notification.reservationStartDate,
+      endDate: notification.reservationEndDate,
+      timestamp: notification.createdAt,
+      nights: 0
+    });
+  }
+
   return entries.sort((a, b) => (a.timestamp > b.timestamp ? -1 : 1));
 }
 
@@ -75,16 +110,20 @@ function formatRelative(timestamp: string) {
 
 export function ActivityLog({
   reservations,
+  maintenanceRecords,
+  maintenanceNotifications,
   holidayMap,
   approvalsEnabled
 }: {
   reservations: Reservation[];
+  maintenanceRecords: MaintenanceRecord[];
+  maintenanceNotifications: MaintenanceNotification[];
   holidayMap: HolidayMap;
   approvalsEnabled: boolean;
 }) {
   const entries = useMemo(
-    () => buildLogEntries(reservations, holidayMap, approvalsEnabled),
-    [reservations, holidayMap, approvalsEnabled]
+    () => buildLogEntries(reservations, maintenanceRecords, maintenanceNotifications, holidayMap, approvalsEnabled),
+    [reservations, maintenanceRecords, maintenanceNotifications, holidayMap, approvalsEnabled]
   );
 
   const [monthCursor, setMonthCursor] = useState(startOfMonth(new Date()));
@@ -138,6 +177,44 @@ export function ActivityLog({
       ) : (
         <ol className="relative mt-5 border-l border-slate-300/70">
           {monthEntries.map((entry) => {
+            if (entry.type === "maintenance-scheduled") {
+              return (
+                <li key={entry.id} className="mb-6 ml-6 last:mb-0">
+                  <span className="absolute -left-3 flex h-6 w-6 items-center justify-center rounded-full bg-[#d9f1f5] ring-4 ring-[rgb(33,27,24)]">
+                    <CalendarDays className="h-4 w-4 text-[#317f8c]" />
+                  </span>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="text-sm font-medium text-slate-800">
+                        {entry.userName} has scheduled {entry.maintenanceTypeName?.toLowerCase()} for {entry.scheduledFor}
+                      </p>
+                      <time className="whitespace-nowrap text-[11px] text-slate-400 sm:text-xs">{formatRelative(entry.timestamp)}</time>
+                    </div>
+                  </div>
+                </li>
+              );
+            }
+
+            if (entry.type === "maintenance-notified") {
+              return (
+                <li key={entry.id} className="mb-6 ml-6 last:mb-0">
+                  <span className="absolute -left-3 flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 ring-4 ring-[rgb(33,27,24)]">
+                    <BellRing className="h-4 w-4 text-amber-700" />
+                  </span>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="text-sm font-medium text-slate-800">
+                        {entry.userName} was notified to book {entry.maintenanceTypeName?.toLowerCase()} for the stay on {formatDateRange(entry.startDate, entry.endDate, 0).replace(" · 0 nights", "")}
+                      </p>
+                      <time className="whitespace-nowrap text-[11px] text-slate-400 sm:text-xs">{formatRelative(entry.timestamp)}</time>
+                    </div>
+                  </div>
+                </li>
+              );
+            }
+
             if (entry.type === "created") {
               return (
                 <li key={entry.id} className="mb-6 ml-6 last:mb-0">

@@ -1,22 +1,27 @@
 import { AppShell } from "@/components/app-shell";
-import { currentUser } from "@/lib/mock-data";
 import { AdminConsole } from "@/app/admin/admin-console";
 import { getNumberAppSetting } from "@/lib/app-settings";
 import { getReservationApprovalsEnabled, HOMEPAGE_RESERVATIONS_COUNT_KEY } from "@/lib/feature-flags";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { UserProfile } from "@/lib/types";
-import { mockUsers } from "@/lib/mock-data";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
 import { isSuperadmin } from "@/lib/rbac";
+import { getAuthenticatedUserProfile, getMaintenanceTypes } from "@/lib/live-data";
 
 const DEFAULT_HOME_RESERVATION_COUNT = 5;
 
 export default async function AdminPage() {
   const cookieStore = await cookies();
   const previewRole = getRolePreviewFromCookieValue(cookieStore.get("majestic-role-preview")?.value ?? null);
-  const effectiveUser = getEffectiveUser(currentUser, previewRole);
+  const profile = await getAuthenticatedUserProfile();
+
+  if (!profile) {
+    redirect("/login");
+  }
+
+  const effectiveUser = getEffectiveUser(profile, previewRole);
 
   if (!isSuperadmin(effectiveUser)) {
     redirect("/");
@@ -25,7 +30,8 @@ export default async function AdminPage() {
   const approvalsEnabled = await getReservationApprovalsEnabled();
   const homepageReservationCount = await getNumberAppSetting(HOMEPAGE_RESERVATIONS_COUNT_KEY, DEFAULT_HOME_RESERVATION_COUNT);
   const admin = createAdminClient();
-  let users: UserProfile[] = mockUsers;
+  const maintenanceTypes = await getMaintenanceTypes();
+  let users: UserProfile[] = [];
 
   if (admin) {
     const { data, error } = await admin
@@ -51,7 +57,7 @@ export default async function AdminPage() {
           <p className="text-xs uppercase tracking-[0.3em] text-[#eefdf8]">Security</p>
           <h1 className="mt-2 text-3xl">Admin Area</h1>
           <p className="mt-2 max-w-3xl text-sm text-[#eefdf8]">
-            Signed in as {currentUser.fullName}. Superadmin can create/delete accounts, preview lower roles, trigger password resets, and control shared app settings.
+            Signed in as {profile.fullName}. Superadmin can create/delete accounts, preview lower roles, trigger password resets, and control shared app settings.
           </p>
         </div>
         <div className="px-6 py-4 text-sm text-slate-600">
@@ -60,7 +66,13 @@ export default async function AdminPage() {
       </section>
 
       <section>
-        <AdminConsole initialApprovalsEnabled={approvalsEnabled} initialHomepageReservationCount={homepageReservationCount} initialUsers={users} />
+        <AdminConsole
+          initialApprovalsEnabled={approvalsEnabled}
+          initialHomepageReservationCount={homepageReservationCount}
+          initialMaintenanceTypes={maintenanceTypes}
+          initialUsers={users}
+          currentUserId={profile.id}
+        />
       </section>
     </AppShell>
   );
