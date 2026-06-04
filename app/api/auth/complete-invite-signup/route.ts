@@ -5,6 +5,10 @@ function passwordMeetsRules(password: string) {
   return password.length >= 8 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password);
 }
 
+function emailLooksValid(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 export async function POST(request: Request) {
   const body = (await request.json()) as {
     inviteToken?: string;
@@ -20,6 +24,14 @@ export async function POST(request: Request) {
 
   if (!inviteToken || !fullName || !email || !password) {
     return NextResponse.json({ error: "Invite token, name, email, and password are required." }, { status: 400 });
+  }
+
+  if (fullName.length < 2) {
+    return NextResponse.json({ error: "Please enter your full name." }, { status: 400 });
+  }
+
+  if (!emailLooksValid(email)) {
+    return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
   }
 
   if (!passwordMeetsRules(password)) {
@@ -62,6 +74,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: createUserError?.message ?? "Failed to create account." }, { status: 400 });
   }
 
+  const { data: roleGrant } = await admin
+    .from("role_grants")
+    .select("role")
+    .ilike("email", email)
+    .maybeSingle();
+
+  const resolvedRole = roleGrant?.role === "admin" || roleGrant?.role === "superadmin" ? roleGrant.role : "user";
+
+  const { error: profileUpsertError } = await admin.from("profiles").upsert(
+    {
+      id: createdUser.user.id,
+      email,
+      full_name: fullName,
+      role: resolvedRole,
+      force_password_reset: false
+    },
+    { onConflict: "id" }
+  );
+
+  if (profileUpsertError) {
+    return NextResponse.json({ error: profileUpsertError.message }, { status: 400 });
+  }
+
   const { error: consumeError } = await admin
     .from("signup_invites")
     .update({ consumed_by: createdUser.user.id, consumed_at: new Date().toISOString() })
@@ -72,5 +107,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: consumeError.message }, { status: 400 });
   }
 
-  return NextResponse.json({ message: "Account created. You can now sign in." });
+  return NextResponse.json({ message: "Account created. You can now sign in.", loginEmail: email });
 }

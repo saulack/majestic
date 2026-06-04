@@ -69,7 +69,7 @@ export function SignupForm({ inviteToken }: { inviteToken: string }) {
       })
     });
 
-    const payload = (await response.json()) as { message?: string; error?: string };
+    const payload = (await response.json()) as { message?: string; error?: string; loginEmail?: string };
 
     setBusy(false);
 
@@ -79,7 +79,8 @@ export function SignupForm({ inviteToken }: { inviteToken: string }) {
     }
 
     setMessage(payload.message ?? "Registration complete. Redirecting to sign in...");
-    router.push("/login");
+    const loginEmail = payload.loginEmail?.trim().toLowerCase() || cleanEmail;
+    router.push(`/login?email=${encodeURIComponent(loginEmail)}`);
     router.refresh();
   }
 

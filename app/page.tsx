@@ -8,7 +8,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
 import { isAdminLike } from "@/lib/rbac";
-import type { Reservation } from "@/lib/types";
+import type { AppRole, Reservation } from "@/lib/types";
 
 const DEFAULT_HOME_RESERVATION_COUNT = 5;
 
@@ -49,6 +49,7 @@ export default async function HomePage() {
   const requestMetricValue = approvalsEnabled
     ? normalizedReservations.filter((reservation) => reservation.status === "pending").length
     : normalizedReservations.filter((reservation) => reservation.status === "approved").length;
+  const currentRoleMetricValue: AppRole = profile.role === "superadmin" ? profile.role : actingUser.role;
 
   return (
     <AppShell initialRole={actingUser.role} initialPreviewRole={previewRole}>
@@ -66,7 +67,7 @@ export default async function HomePage() {
           <div className="grid gap-3 p-5 sm:grid-cols-3 sm:gap-4 sm:p-6">
             <Metric label={adminLike ? "Visible reservations" : "My reservations"} value={String(adminLike ? reservations.length : myReservations.length)} />
             <Metric label={adminLike ? requestMetricLabel : "Your next stay"} value={adminLike ? String(requestMetricValue) : myNextStay?.startDate ?? "-"} />
-            <Metric label={adminLike ? "Current role" : "Notification channels"} value={adminLike ? actingUser.role : "Email, SMS, WhatsApp"} />
+            <Metric label={adminLike ? "Current role" : "Notification channels"} value={adminLike ? currentRoleMetricValue : "Email, SMS, WhatsApp"} />
           </div>
         </div>
 

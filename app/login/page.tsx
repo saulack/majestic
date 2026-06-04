@@ -7,8 +7,12 @@ import { createClient } from "@/lib/supabase/client";
 import { isBiometricAuthEnabled, verifyBiometricAuthentication } from "@/lib/biometric-auth";
 import { activateLocalAuthSession, getLocalAuthDefaults, readLocalAuthSnapshot, setLocalAuthPassword } from "@/lib/local-auth";
 
-function resolveLoginEmail(username: string) {
-  return username.includes("@") ? username : username === "saulack" ? "saulack@gmail.com" : `${username}@gmail.com`;
+function resolveLoginEmail(identifier: string) {
+  return identifier.trim().toLowerCase();
+}
+
+function emailLooksValid(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 export default function LoginPage() {
@@ -19,6 +23,13 @@ export default function LoginPage() {
   const [resetUsername, setResetUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [loginIdentifier, setLoginIdentifier] = useState(() => {
+    if (typeof window === "undefined") {
+      return "";
+    }
+
+    return new URLSearchParams(window.location.search).get("email")?.trim() ?? "";
+  });
 
   async function completeReset() {
     if (!resetEmail) {
@@ -90,13 +101,18 @@ export default function LoginPage() {
   }
 
   async function handleLogin(formData: FormData) {
-    const username = String(formData.get("username") ?? "").trim().toLowerCase();
+    const identifier = loginIdentifier.trim().toLowerCase();
     const password = String(formData.get("password") ?? "").trim();
     const localSnapshot = readLocalAuthSnapshot();
     const defaults = getLocalAuthDefaults();
 
-    if (!username || !password) {
-      setMessage("Username and password are required.");
+    if (!identifier || !password) {
+      setMessage("Email and password are required.");
+      return;
+    }
+
+    if (!emailLooksValid(identifier)) {
+      setMessage("Use your full email address to sign in.");
       return;
     }
 
@@ -105,7 +121,7 @@ export default function LoginPage() {
     setNewPassword("");
     setConfirmPassword("");
 
-    const localUsernameMatches = username === defaults.username || username === localSnapshot.username;
+    const localUsernameMatches = identifier === defaults.username || identifier === localSnapshot.username;
     const localPasswordMatches = password === localSnapshot.password;
 
     if (localUsernameMatches && localPasswordMatches && !createClient()) {
@@ -117,7 +133,7 @@ export default function LoginPage() {
         }
       }
 
-      activateLocalAuthSession(username);
+      activateLocalAuthSession(identifier);
       setMessage("Signed in with the local session.");
       router.push("/");
       router.refresh();
@@ -135,7 +151,7 @@ export default function LoginPage() {
           }
         }
 
-        activateLocalAuthSession(username);
+        activateLocalAuthSession(identifier);
         setMessage("Signed in with the local session.");
         router.push("/");
         router.refresh();
@@ -146,7 +162,7 @@ export default function LoginPage() {
       return;
     }
 
-    const email = resolveLoginEmail(username);
+    const email = resolveLoginEmail(identifier);
 
     setBusy(true);
     setMessage("");
@@ -167,7 +183,7 @@ export default function LoginPage() {
     if (resetStatusPayload.required) {
       setBusy(false);
       setResetEmail(email);
-      setResetUsername(username);
+      setResetUsername(identifier);
       setMessage("Your password has been reset by the superadmin. Set a new password to continue.");
       return;
     }
@@ -189,7 +205,7 @@ export default function LoginPage() {
         }
       }
 
-      activateLocalAuthSession(username);
+      activateLocalAuthSession(identifier);
       router.push("/");
       router.refresh();
       return;
@@ -204,7 +220,7 @@ export default function LoginPage() {
         }
       }
 
-      activateLocalAuthSession(username);
+      activateLocalAuthSession(identifier);
       setMessage("Signed in with the local session.");
       router.push("/");
       router.refresh();
@@ -230,8 +246,17 @@ export default function LoginPage() {
           }}
         >
           <label className="grid gap-1.5 text-sm font-medium">
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Username</span>
-            <input name="username" className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Username" />
+            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Email</span>
+            <input
+              name="email"
+              type="email"
+              value={loginIdentifier}
+              onChange={(event) => setLoginIdentifier(event.target.value)}
+              className="rounded-lg border border-slate-300 px-3 py-2"
+              placeholder="name@example.com"
+              autoComplete="email"
+              required
+            />
           </label>
           <label className="grid gap-1.5 text-sm font-medium">
             <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Password</span>
