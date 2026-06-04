@@ -1,5 +1,6 @@
 import { buildMaintenanceSummaries } from "@/lib/maintenance";
 import type {
+  FeatureRequest,
   MaintenanceThresholdApproval,
   MaintenanceNotification,
   MaintenanceRecord,
@@ -316,6 +317,184 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
     createdByName: ((entry.creator as unknown as { full_name: string } | null)?.full_name) ?? "Unknown",
     createdAt: entry.created_at
   }));
+}
+
+function mapFeatureRequestRow(entry: {
+  id: string;
+  requested_by: string;
+  title: string;
+  description: string;
+  status: "pending" | "in_progress" | "declined" | "completed" | "rejected";
+  status_email_opt_in: boolean;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  requester: unknown;
+  reviewer: unknown;
+}): FeatureRequest {
+  return {
+    id: entry.id,
+    requestedByUserId: entry.requested_by,
+    requestedByName: ((entry.requester as { full_name?: string } | null)?.full_name ?? "Unknown").toString(),
+    requestedByEmail: ((entry.requester as { email?: string } | null)?.email ?? "").toString(),
+    title: entry.title,
+    description: entry.description,
+    status: entry.status,
+    statusEmailOptIn: entry.status_email_opt_in,
+    reviewedByUserId: entry.reviewed_by ?? undefined,
+    reviewedByName: ((entry.reviewer as { full_name?: string } | null)?.full_name ?? undefined)?.toString(),
+    reviewedAt: entry.reviewed_at ?? undefined,
+    createdAt: entry.created_at,
+    updatedAt: entry.updated_at
+  };
+}
+
+export async function getMyFeatureRequests(userId: string): Promise<FeatureRequest[]> {
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("feature_requests")
+    .select(`
+      id,
+      requested_by,
+      title,
+      description,
+      status,
+      status_email_opt_in,
+      reviewed_by,
+      reviewed_at,
+      created_at,
+      updated_at,
+      requester:profiles!feature_requests_requested_by_fkey(full_name,email),
+      reviewer:profiles!feature_requests_reviewed_by_fkey(full_name)
+    `)
+    .eq("requested_by", userId)
+    .order("created_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((entry) =>
+    mapFeatureRequestRow(
+      entry as {
+        id: string;
+        requested_by: string;
+        title: string;
+        description: string;
+        status: "pending" | "in_progress" | "declined" | "completed" | "rejected";
+        status_email_opt_in: boolean;
+        reviewed_by: string | null;
+        reviewed_at: string | null;
+        created_at: string;
+        updated_at: string;
+        requester: unknown;
+        reviewer: unknown;
+      }
+    )
+  );
+}
+
+export async function getPendingFeatureRequests(): Promise<FeatureRequest[]> {
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("feature_requests")
+    .select(`
+      id,
+      requested_by,
+      title,
+      description,
+      status,
+      status_email_opt_in,
+      reviewed_by,
+      reviewed_at,
+      created_at,
+      updated_at,
+      requester:profiles!feature_requests_requested_by_fkey(full_name,email),
+      reviewer:profiles!feature_requests_reviewed_by_fkey(full_name)
+    `)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((entry) =>
+    mapFeatureRequestRow(
+      entry as {
+        id: string;
+        requested_by: string;
+        title: string;
+        description: string;
+        status: "pending" | "in_progress" | "declined" | "completed" | "rejected";
+        status_email_opt_in: boolean;
+        reviewed_by: string | null;
+        reviewed_at: string | null;
+        created_at: string;
+        updated_at: string;
+        requester: unknown;
+        reviewer: unknown;
+      }
+    )
+  );
+}
+
+export async function getQueuedFeatureRequests(): Promise<FeatureRequest[]> {
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("feature_requests")
+    .select(`
+      id,
+      requested_by,
+      title,
+      description,
+      status,
+      status_email_opt_in,
+      reviewed_by,
+      reviewed_at,
+      created_at,
+      updated_at,
+      requester:profiles!feature_requests_requested_by_fkey(full_name,email),
+      reviewer:profiles!feature_requests_reviewed_by_fkey(full_name)
+    `)
+    .eq("status", "in_progress")
+    .order("updated_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((entry) =>
+    mapFeatureRequestRow(
+      entry as {
+        id: string;
+        requested_by: string;
+        title: string;
+        description: string;
+        status: "pending" | "in_progress" | "declined" | "completed" | "rejected";
+        status_email_opt_in: boolean;
+        reviewed_by: string | null;
+        reviewed_at: string | null;
+        created_at: string;
+        updated_at: string;
+        requester: unknown;
+        reviewer: unknown;
+      }
+    )
+  );
 }
 
 export async function getMaintenanceNotifications(): Promise<MaintenanceNotification[]> {

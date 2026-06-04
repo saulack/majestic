@@ -69,9 +69,24 @@ export const mockReservations: Reservation[] = [
 ];
 
 export const mockPreferences: NotificationPreference[] = [
-  { userId: "user-1", channels: ["email", "sms"], reservationConfirmationEmail: true },
-  { userId: "user-2", channels: ["email"], reservationConfirmationEmail: true },
-  { userId: "user-3", channels: ["email"], reservationConfirmationEmail: false }
+  {
+    userId: "user-1",
+    channels: ["email", "sms"],
+    reservationConfirmationEmail: true,
+    reservationBookedByOtherEmail: true
+  },
+  {
+    userId: "user-2",
+    channels: ["email"],
+    reservationConfirmationEmail: true,
+    reservationBookedByOtherEmail: true
+  },
+  {
+    userId: "user-3",
+    channels: ["email"],
+    reservationConfirmationEmail: false,
+    reservationBookedByOtherEmail: false
+  }
 ];
 
 export const mockAdminInvites: AdminInvite[] = [

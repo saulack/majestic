@@ -3,6 +3,7 @@ export type ChannelPreference = "email" | "sms";
 export type AppRole = "user" | "admin" | "superadmin";
 
 export type ReservationStatus = "pending" | "approved" | "declined";
+export type FeatureRequestStatus = "pending" | "in_progress" | "declined" | "completed" | "rejected";
 
 export type UserProfile = {
   id: string;
@@ -34,6 +35,22 @@ export type NotificationPreference = {
   channels: ChannelPreference[];
   reservationConfirmationEmail: boolean;
   reservationBookedByOtherEmail: boolean;
+};
+
+export type FeatureRequest = {
+  id: string;
+  requestedByUserId: string;
+  requestedByName: string;
+  requestedByEmail: string;
+  title: string;
+  description: string;
+  status: FeatureRequestStatus;
+  statusEmailOptIn: boolean;
+  reviewedByUserId?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type MaintenanceType = {

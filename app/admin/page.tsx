@@ -8,7 +8,12 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
 import { isSuperadmin } from "@/lib/rbac";
-import { getAuthenticatedUserProfile, getMaintenanceTypes, getPendingMaintenanceThresholdApprovals } from "@/lib/live-data";
+import {
+  getAuthenticatedUserProfile,
+  getMaintenanceTypes,
+  getPendingFeatureRequests,
+  getPendingMaintenanceThresholdApprovals
+} from "@/lib/live-data";
 
 const DEFAULT_HOME_RESERVATION_COUNT = 5;
 
@@ -30,9 +35,10 @@ export default async function AdminPage() {
   const approvalsEnabled = await getReservationApprovalsEnabled();
   const homepageReservationCount = await getNumberAppSetting(HOMEPAGE_RESERVATIONS_COUNT_KEY, DEFAULT_HOME_RESERVATION_COUNT);
   const admin = createAdminClient();
-  const [maintenanceTypes, pendingThresholdApprovals] = await Promise.all([
+  const [maintenanceTypes, pendingThresholdApprovals, pendingFeatureRequests] = await Promise.all([
     getMaintenanceTypes(),
-    getPendingMaintenanceThresholdApprovals()
+    getPendingMaintenanceThresholdApprovals(),
+    getPendingFeatureRequests()
   ]);
   let users: UserProfile[] = [];
 
@@ -74,6 +80,7 @@ export default async function AdminPage() {
           initialHomepageReservationCount={homepageReservationCount}
           initialMaintenanceTypes={maintenanceTypes}
           initialThresholdApprovals={pendingThresholdApprovals}
+          initialPendingFeatureRequests={pendingFeatureRequests}
           initialUsers={users}
           currentUserId={profile.id}
         />

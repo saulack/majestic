@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { PropsWithChildren } from "react";
-import { CalendarDays, ChartColumnBig, Home, ShieldCheck, UserRound, Info, Wrench } from "lucide-react";
+import { CalendarDays, ChartColumnBig, Home, ShieldCheck, UserRound, Info, Wrench, Lightbulb, ListTodo } from "lucide-react";
 import { RolePreviewRestore } from "@/components/role-preview-restore";
 import { getEffectiveRole } from "@/lib/role-preview";
 import type { AppRole } from "@/lib/types";
@@ -25,10 +25,12 @@ export function AppShell({
         <nav className="no-scrollbar flex w-full snap-x gap-1 overflow-x-auto rounded-lg border border-[#bde3df] bg-[#f4fbfa]/96 p-1.5 shadow-[0_12px_28px_rgba(90,154,175,0.16)] backdrop-blur md:w-auto">
           <NavItem href="/" label="Home" icon={<Home className="h-4 w-4" />} />
           <NavItem href="/reservations" label="Reservations" icon={<CalendarDays className="h-4 w-4" />} />
+          <NavItem href="/feature-requests" label="Requests" icon={<Lightbulb className="h-4 w-4" />} />
           <NavItem href="/stats" label="Stats" icon={<ChartColumnBig className="h-4 w-4" />} />
           <NavItem href="/maintenance" label="Maintenance" icon={<Wrench className="h-4 w-4" />} />
           <NavItem href="/info" label="Info" icon={<Info className="h-4 w-4" />} />
           <NavItem href="/account" label="Account" icon={<UserRound className="h-4 w-4" />} />
+          {effectiveRole === "superadmin" ? <NavItem href="/feature-queue" label="Queue" icon={<ListTodo className="h-4 w-4" />} /> : null}
           {effectiveRole === "superadmin" ? <NavItem href="/admin" label="Admin" icon={<ShieldCheck className="h-4 w-4" />} /> : null}
         </nav>
       </header>
