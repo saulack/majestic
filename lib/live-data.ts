@@ -132,12 +132,21 @@ export async function getNotificationPreference(userId: string): Promise<Notific
 
   const { data, error } = await supabase
     .from("notification_preferences")
-    .select("email_enabled,sms_enabled")
+    .select("email_enabled,sms_enabled,reservation_confirmation_email,reservation_booked_by_other_email")
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (error || !data) {
+  if (error) {
     return undefined;
+  }
+
+  if (!data) {
+    return {
+      userId,
+      channels: [],
+      reservationConfirmationEmail: false,
+      reservationBookedByOtherEmail: false
+    };
   }
 
   const channels: Array<"email" | "sms"> = [];
@@ -152,7 +161,9 @@ export async function getNotificationPreference(userId: string): Promise<Notific
 
   return {
     userId,
-    channels
+    channels,
+    reservationConfirmationEmail: Boolean(data.reservation_confirmation_email),
+    reservationBookedByOtherEmail: Boolean(data.reservation_booked_by_other_email)
   };
 }
 

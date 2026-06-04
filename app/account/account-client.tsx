@@ -24,6 +24,14 @@ export function AccountClientPage({
   const [profileBusy, setProfileBusy] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [logoutStatus, setLogoutStatus] = useState("");
+  const [preferencesBusy, setPreferencesBusy] = useState(false);
+  const [preferencesStatus, setPreferencesStatus] = useState("");
+  const [reservationConfirmationEmail, setReservationConfirmationEmail] = useState(
+    preferences?.reservationConfirmationEmail ?? false
+  );
+  const [reservationBookedByOtherEmail, setReservationBookedByOtherEmail] = useState(
+    preferences?.reservationBookedByOtherEmail ?? false
+  );
   const emailEnabled = preferences?.channels.includes("email") ?? false;
   const smsEnabled = preferences?.channels.includes("sms") ?? false;
 
@@ -67,6 +75,21 @@ export function AccountClientPage({
       router.refresh();
     }
     setProfileStatus(payload.error ?? payload.message ?? "Profile update complete.");
+  }
+
+  async function saveNotificationPreferences() {
+    setPreferencesBusy(true);
+    setPreferencesStatus("");
+
+    const response = await fetch("/api/account/notification-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reservationConfirmationEmail, reservationBookedByOtherEmail })
+    });
+
+    const payload = (await response.json()) as { message?: string; error?: string };
+    setPreferencesBusy(false);
+    setPreferencesStatus(payload.error ?? payload.message ?? "Preferences updated.");
   }
 
   return (
@@ -128,6 +151,46 @@ export function AccountClientPage({
               </div>
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
                 Under construction. Email and SMS delivery options will connect once the services are set up.
+              </div>
+
+              <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Email me when I make a reservation</p>
+                  <p className="mt-1 text-xs text-slate-500">Sends a reservation confirmation email after booking.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={reservationConfirmationEmail}
+                  onChange={(event) => setReservationConfirmationEmail(event.target.checked)}
+                  className="h-4 w-4"
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Email me when someone books for me</p>
+                  <p className="mt-1 text-xs text-slate-500">Sends a confirmation email when another user creates a reservation on your behalf.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={reservationBookedByOtherEmail}
+                  onChange={(event) => setReservationBookedByOtherEmail(event.target.checked)}
+                  className="h-4 w-4"
+                />
+              </label>
+
+              <div>
+                <button
+                  type="button"
+                  disabled={preferencesBusy}
+                  onClick={() => {
+                    void saveNotificationPreferences();
+                  }}
+                  className="rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-60"
+                >
+                  {preferencesBusy ? "Saving..." : "Save notification preferences"}
+                </button>
+                {preferencesStatus ? <p className="mt-2 text-sm text-slate-700">{preferencesStatus}</p> : null}
               </div>
             </div>
           </div>

@@ -13,6 +13,7 @@ A high-end apartment booking app starter for Vercel + Supabase.
 - Superadmin account management area for create/delete users, plus admin signup URL generation in Settings
 - Date conflict detection utility for overlapping bookings
 - Notification preference center (email, SMS, WhatsApp)
+- Reservation confirmation email opt-in with Resend delivery
 - Maintenance scheduling with configurable superadmin-managed maintenance types and reminder thresholds
 - Yearly stats page with charted total visit days per user
 - Supabase SQL migration with RLS policies
@@ -73,6 +74,11 @@ Implement real sends in lib/notifications.ts:
 - WhatsApp: Meta WhatsApp Cloud API or Twilio WhatsApp
 
 You can postpone notification setup. The app works on free Supabase without these provider keys.
+
+For reservation confirmation emails with Resend, configure:
+
+- RESEND_API_KEY
+- RESEND_FROM_EMAIL
 
 ## Notes
 

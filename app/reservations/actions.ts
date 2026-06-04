@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatMaintenanceAlert, getDueMaintenanceTypes, type MaintenanceContactInfo } from "@/lib/maintenance";
+import { sendReservationConfirmationEmail } from "@/lib/notifications";
 import type { MaintenanceType } from "@/lib/types";
 
 export type ActionResult = { error?: string; success?: boolean; maintenanceAlerts?: string[] };
@@ -34,7 +35,7 @@ export async function createReservation(params: {
 
   const { data: actingProfile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role,full_name")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -80,7 +81,7 @@ export async function createReservation(params: {
       notes: notes.trim() || null,
       status: approvalEnabled ? "pending" : "approved"
     })
-    .select("id,user_id,start_date,end_date")
+    .select("id,user_id,start_date,end_date,created_at")
     .single();
 
   if (insertError || !insertedReservation) {
@@ -168,6 +169,46 @@ export async function createReservation(params: {
           triggered_on: insertedReservation.end_date
         }))
       );
+    }
+  }
+
+  const admin = createAdminClient();
+  if (admin) {
+    const [notificationPreferenceResult, bookedUserResult] = await Promise.all([
+      admin
+        .from("notification_preferences")
+        .select("reservation_confirmation_email,reservation_booked_by_other_email,email_enabled")
+        .eq("user_id", insertedReservation.user_id)
+        .maybeSingle(),
+      admin
+        .from("profiles")
+        .select("full_name,email")
+        .eq("id", insertedReservation.user_id)
+        .maybeSingle()
+    ]);
+
+    const bookedByOtherUser = insertedReservation.user_id !== user.id;
+    const shouldSendConfirmation = bookedByOtherUser
+      ? Boolean(notificationPreferenceResult.data?.reservation_booked_by_other_email)
+      : Boolean(notificationPreferenceResult.data?.reservation_confirmation_email);
+
+    if (!notificationPreferenceResult.error && !bookedUserResult.error && shouldSendConfirmation && notificationPreferenceResult.data?.email_enabled && bookedUserResult.data?.email) {
+      await sendReservationConfirmationEmail({
+        email: bookedUserResult.data.email,
+        fullName: bookedUserResult.data.full_name,
+        bookingDate: insertedReservation.created_at,
+        startDate: insertedReservation.start_date,
+        endDate: insertedReservation.end_date,
+        durationNights:
+          Math.max(
+            0,
+            Math.round((new Date(insertedReservation.end_date).getTime() - new Date(insertedReservation.start_date).getTime()) / (1000 * 60 * 60 * 24))
+          ) + 1,
+        bookedByName:
+          bookedByOtherUser
+            ? actingProfile?.full_name?.trim() || "another user"
+            : undefined
+      });
     }
   }
 

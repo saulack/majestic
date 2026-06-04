@@ -32,6 +32,8 @@ export type Reservation = {
 export type NotificationPreference = {
   userId: string;
   channels: ChannelPreference[];
+  reservationConfirmationEmail: boolean;
+  reservationBookedByOtherEmail: boolean;
 };
 
 export type MaintenanceType = {
