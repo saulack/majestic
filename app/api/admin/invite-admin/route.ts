@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireSuperadmin } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -16,27 +15,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email is required." }, { status: 400 });
   }
 
-  const token = randomUUID().replaceAll("-", "");
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const inviteUrl = `${appUrl}/signup?invite_token=${token}`;
-
   const admin = createAdminClient();
   if (!admin) {
-    return NextResponse.json({ inviteUrl, mode: "mock" });
+    return NextResponse.json({ mode: "mock", message: `Mock invite prepared for ${email}.` });
   }
 
-  const { error } = await admin.from("admin_invites").insert({
-    token,
-    email,
-    role: "admin",
-    created_by: auth.userId,
-    expires_at: expiresAt
+  const { error } = await admin.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/signup`
   });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ inviteUrl, mode: "live" });
+  return NextResponse.json({ mode: "live", message: `Invitation sent to ${email}.` });
 }

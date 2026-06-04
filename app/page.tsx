@@ -4,31 +4,45 @@ import { AppShell } from "@/components/app-shell";
 import { currentUser, mockReservations } from "@/lib/mock-data";
 import { getNumberAppSetting } from "@/lib/app-settings";
 import { HOMEPAGE_RESERVATIONS_COUNT_KEY } from "@/lib/feature-flags";
+import { cookies } from "next/headers";
+import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
+import { isAdminLike } from "@/lib/rbac";
 
 const DEFAULT_HOME_RESERVATION_COUNT = 5;
 
 export default async function HomePage() {
+  const cookieStore = await cookies();
+  const previewRole = getRolePreviewFromCookieValue(cookieStore.get("majestic-role-preview")?.value ?? null);
+  const actingUser = getEffectiveUser(currentUser, previewRole);
+  const adminLike = isAdminLike(actingUser);
   const upcomingReservationCount = await getNumberAppSetting(HOMEPAGE_RESERVATIONS_COUNT_KEY, DEFAULT_HOME_RESERVATION_COUNT);
   const upcomingReservations = [...mockReservations]
     .filter((reservation) => compareAsc(parseISO(reservation.startDate), new Date()) >= 0)
     .sort((left, right) => compareAsc(parseISO(left.startDate), parseISO(right.startDate)))
     .slice(0, upcomingReservationCount);
+  const myReservations = mockReservations.filter((reservation) => reservation.userId === actingUser.id);
+  const myNextStay = myReservations
+    .filter((reservation) => compareAsc(parseISO(reservation.startDate), new Date()) >= 0)
+    .sort((left, right) => compareAsc(parseISO(left.startDate), parseISO(right.startDate)))[0];
+  const pendingRequests = mockReservations.filter((reservation) => reservation.status === "pending").length;
 
   return (
     <AppShell>
       <section className="grid gap-5 sm:gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="card overflow-hidden">
-          <div className="border-b border-slate-200 bg-gradient-to-r from-[#2f231d] via-[#3a2a22] to-[#4a3328] p-6 text-white sm:p-8">
-            <p className="text-[11px] uppercase tracking-[0.3em] text-amber-100 sm:text-xs sm:tracking-[0.32em]">Family Dashboard</p>
-            <h2 className="mt-2 text-3xl font-semibold leading-tight sm:text-4xl">{currentUser.fullName}</h2>
-            <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-300">
-              Keep family stays coordinated, track reservations, and share apartment updates in one private place.
+          <div className="border-b border-slate-200 bg-gradient-to-r from-[#5fb8c9] via-[#72c9b2] to-[#f6d28d] p-6 text-white sm:p-8">
+            <p className="text-[11px] uppercase tracking-[0.3em] text-[#edfdf9] sm:text-xs sm:tracking-[0.32em]">Family Dashboard</p>
+            <h2 className="mt-2 text-3xl font-semibold leading-tight sm:text-4xl">{actingUser.fullName}</h2>
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-[#effcf8]">
+              {adminLike
+                ? "Previewing a higher-level view of the apartment hub with moderation context and shared activity visibility."
+                : "Keep family stays coordinated, track reservations, and share apartment updates in one private place."}
             </p>
           </div>
           <div className="grid gap-3 p-5 sm:grid-cols-3 sm:gap-4 sm:p-6">
-            <Metric label="Total reservations" value={String(mockReservations.length)} />
-            <Metric label="Your next stay" value={mockReservations[0]?.startDate ?? "-"} />
-            <Metric label="Notification channels" value="Email, SMS, WhatsApp" />
+            <Metric label={adminLike ? "Visible reservations" : "My reservations"} value={String(adminLike ? mockReservations.length : myReservations.length)} />
+            <Metric label={adminLike ? "Pending requests" : "Your next stay"} value={adminLike ? String(pendingRequests) : myNextStay?.startDate ?? "-"} />
+            <Metric label={adminLike ? "Current role" : "Notification channels"} value={adminLike ? actingUser.role : "Email, SMS, WhatsApp"} />
           </div>
         </div>
 
@@ -36,7 +50,7 @@ export default async function HomePage() {
           <h3 className="text-lg sm:text-xl">Quick Actions</h3>
           <div className="mt-4 grid gap-3">
             <Action href="/reservations" title="Create reservation" subtitle="Plan your next family stay" />
-            <Action href="/reservations" title="Manage requests" subtitle="Review approvals, denials, and notes" />
+            <Action href="/reservations" title={adminLike ? "Manage requests" : "View reservations"} subtitle={adminLike ? "Review approvals, denials, and notes" : "See your stays and booking calendar"} />
             <Action href="/stats" title="View personal stats" subtitle="Track your own stays and nights" />
           </div>
         </div>

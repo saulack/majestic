@@ -1,8 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { currentUser, mockUsers } from "@/lib/mock-data";
-import { isSuperadmin } from "@/lib/rbac";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { ToggleSwitch } from "@/components/toggle-switch";
+import { currentUser } from "@/lib/mock-data";
+import { clearRolePreviewInBrowser, setRolePreviewInBrowser } from "@/lib/role-preview";
+import type { UserProfile } from "@/lib/types";
 
 type ApiResult = {
   message?: string;
@@ -13,16 +16,19 @@ type ApiResult = {
 
 export function AdminConsole({
   initialApprovalsEnabled,
-  initialHomepageReservationCount
+  initialHomepageReservationCount,
+  initialUsers
 }: {
   initialApprovalsEnabled: boolean;
   initialHomepageReservationCount: number;
+  initialUsers: UserProfile[];
 }) {
+  const router = useRouter();
   const [result, setResult] = useState<ApiResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [approvalsEnabled, setApprovalsEnabled] = useState(initialApprovalsEnabled);
   const [homepageReservationCount, setHomepageReservationCount] = useState(initialHomepageReservationCount);
-  const canManage = useMemo(() => isSuperadmin(currentUser), []);
+  const [users, setUsers] = useState(initialUsers);
 
   async function postJson(path: string, body: Record<string, string | boolean | number>) {
     setLoading(true);
@@ -47,17 +53,50 @@ export function AdminConsole({
     }
   }
 
-  if (!canManage) {
-    return (
-      <section className="card p-5 sm:p-6">
-        <h2 className="text-xl sm:text-2xl">Admin Console</h2>
-        <p className="mt-3 text-sm text-rose-700">Only superadmin can create/delete accounts.</p>
-      </section>
-    );
-  }
-
   return (
     <section className="grid gap-5 sm:gap-6 lg:grid-cols-2">
+      <div className="card p-5 sm:p-6 lg:col-span-2">
+        <h2 className="text-xl sm:text-2xl">Role Preview</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Temporarily preview the experience as a lower role. A floating button will appear so you can restore superadmin at any time.
+        </p>
+
+        <div className="mt-4 flex flex-wrap gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <button
+            type="button"
+            className="rounded-lg bg-amber-700 px-4 py-2 text-white"
+            onClick={() => {
+              setRolePreviewInBrowser("admin");
+              router.push("/");
+              router.refresh();
+            }}
+          >
+            Become admin
+          </button>
+          <button
+            type="button"
+            className="rounded-lg bg-amber-700 px-4 py-2 text-white"
+            onClick={() => {
+              setRolePreviewInBrowser("user");
+              router.push("/");
+              router.refresh();
+            }}
+          >
+            Become user
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700"
+            onClick={() => {
+              clearRolePreviewInBrowser();
+              router.refresh();
+            }}
+          >
+            Stay superadmin
+          </button>
+        </div>
+      </div>
+
       <div className="card p-5 sm:p-6 lg:col-span-2">
         <h2 className="text-xl sm:text-2xl">Reservation Approvals</h2>
         <p className="mt-2 text-sm text-slate-600">
@@ -73,23 +112,20 @@ export function AdminConsole({
               When paused, reservations book directly. When active, moderation buttons reappear.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={async () => {
-              const next = !approvalsEnabled;
-              setApprovalsEnabled(next);
-              const response = await postJson("/api/admin/reservation-approvals", { enabled: next });
+          <ToggleSwitch
+            checked={approvalsEnabled}
+            disabled={loading}
+            onCheckedChange={async (checked) => {
+              setApprovalsEnabled(checked);
+              const response = await postJson("/api/admin/reservation-approvals", { enabled: checked });
               if (response?.error) {
-                setApprovalsEnabled(!next);
+                setApprovalsEnabled(!checked);
               }
             }}
-            className={[
-              "rounded-lg px-4 py-2 text-white",
-              approvalsEnabled ? "bg-[#6a3d33]" : "bg-amber-700"
-            ].join(" ")}
-          >
-            {approvalsEnabled ? "Disable approvals" : "Enable approvals"}
-          </button>
+            srLabel="Toggle reservation approvals"
+            offLabel="Paused"
+            onLabel="Active"
+          />
         </div>
       </div>
 
@@ -125,7 +161,7 @@ export function AdminConsole({
 
       <div className="card p-5 sm:p-6">
         <h2 className="text-xl sm:text-2xl">Create Account</h2>
-        <p className="mt-2 text-sm text-slate-600">One account per email is enforced by Supabase Auth.</p>
+        <p className="mt-2 text-sm text-slate-600">Send an invite email. The recipient will choose their own name and password on the registration page.</p>
 
         <form
           className="mt-4 grid gap-4"
@@ -133,26 +169,13 @@ export function AdminConsole({
             event.preventDefault();
             const form = new FormData(event.currentTarget);
             void postJson("/api/admin/create-user", {
-              fullName: String(form.get("fullName") ?? ""),
-              email: String(form.get("email") ?? ""),
-              role: String(form.get("role") ?? "user")
+              email: String(form.get("email") ?? "")
             });
           }}
         >
           <label className="grid gap-1.5 text-sm font-medium">
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Full name</span>
-            <input name="fullName" placeholder="Full name" className="rounded-lg border border-slate-300 px-3 py-2" required />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium">
             <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Email</span>
             <input name="email" type="email" placeholder="Email" className="rounded-lg border border-slate-300 px-3 py-2" required />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium">
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Role</span>
-            <select name="role" className="rounded-lg border border-slate-300 px-3 py-2">
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
-            </select>
           </label>
           <button disabled={loading} type="submit" className="rounded-lg bg-amber-700 px-4 py-2 text-white">
             Send invite
@@ -178,19 +201,101 @@ export function AdminConsole({
             <span className="text-xs uppercase tracking-[0.12em] text-slate-500">User ID</span>
             <input name="userId" placeholder="User ID" className="rounded-lg border border-slate-300 px-3 py-2" required />
           </label>
-          <button disabled={loading} type="submit" className="rounded-lg bg-[#6a3d33] px-4 py-2 text-white">
+          <button disabled={loading} type="submit" className="rounded-lg bg-amber-700 px-4 py-2 text-white">
             Delete user
           </button>
         </form>
       </div>
 
       <div className="card p-5 sm:p-6">
-        <h2 className="text-xl sm:text-2xl">Current Users (Mock Preview)</h2>
+        <h2 className="text-xl sm:text-2xl">Force Password Reset</h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Make the next login force a password reset immediately, without email and without checking the previous password.
+        </p>
+
+        <form
+          className="mt-4 grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            const userId = String(form.get("userId") ?? "");
+
+            void (async () => {
+              const response = await postJson("/api/admin/force-password-reset", { userId });
+              if (!response?.error) {
+                setUsers((current) => current.map((user) => (user.id === userId ? { ...user, forcePasswordReset: true } : user)));
+              }
+            })();
+          }}
+        >
+          <label className="grid gap-1.5 text-sm font-medium">
+            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">User ID</span>
+            <input name="userId" placeholder="User ID" className="rounded-lg border border-slate-300 px-3 py-2" required />
+          </label>
+          <button disabled={loading} type="submit" className="rounded-lg bg-amber-700 px-4 py-2 text-white">
+            Force reset on next login
+          </button>
+        </form>
+      </div>
+
+      <div className="card p-5 sm:p-6">
+        <h2 className="text-xl sm:text-2xl">Current Users</h2>
         <ul className="mt-4 grid gap-2 text-sm">
-          {mockUsers.map((user) => (
+          {users.map((user) => (
             <li key={user.id} className="rounded-lg border border-slate-200 px-3 py-2">
-              <span className="font-semibold">{user.fullName}</span> - {user.email} - {user.role}
-              <p className="mt-1 text-xs text-slate-500">User ID: {user.id}</p>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <span className="font-semibold">{user.fullName}</span> - {user.email} - {user.role}
+                  <p className="mt-1 text-xs text-slate-500">User ID: {user.id}</p>
+                  {user.forcePasswordReset ? <p className="mt-1 text-xs text-rose-700">Password reset required on next login.</p> : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  {user.role !== "superadmin" && user.id !== currentUser.id ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                      <span className="text-xs font-medium text-slate-600">Admin access</span>
+                      <ToggleSwitch
+                        checked={user.role === "admin"}
+                        disabled={loading}
+                        onCheckedChange={(checked) => {
+                          void (async () => {
+                            const response = await postJson("/api/admin/user-role", {
+                              userId: user.id,
+                              role: checked ? "admin" : "user"
+                            });
+
+                            if (!response?.error) {
+                              setUsers((current) => current.map((entry) => (entry.id === user.id ? { ...entry, role: checked ? "admin" : "user" } : entry)));
+                            }
+                          })();
+                        }}
+                        srLabel={`Toggle admin access for ${user.fullName}`}
+                        offLabel="User"
+                        onLabel="Admin"
+                      />
+                    </div>
+                  ) : user.role === "superadmin" ? (
+                    <span className="rounded-full border border-[#bde3df] bg-[#f1fbf9] px-2.5 py-1 text-xs font-medium text-[#2f7b84]">Superadmin</span>
+                  ) : null}
+
+                  {user.id !== currentUser.id ? (
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => {
+                        void (async () => {
+                          const response = await postJson("/api/admin/force-password-reset", { userId: user.id });
+                          if (!response?.error) {
+                            setUsers((current) => current.map((entry) => (entry.id === user.id ? { ...entry, forcePasswordReset: true } : entry)));
+                          }
+                        })();
+                      }}
+                      className="rounded-lg bg-amber-700 px-3 py-2 text-xs text-white disabled:opacity-60"
+                    >
+                      Force password reset
+                    </button>
+                  ) : null}
+                </div>
+              </div>
             </li>
           ))}
         </ul>

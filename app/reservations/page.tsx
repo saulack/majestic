@@ -1,10 +1,12 @@
 import { AppShell } from "@/components/app-shell";
 import { MonthlyReservationsCalendar } from "@/components/monthly-reservations-calendar";
-import { mockReservations, mockUsers } from "@/lib/mock-data";
+import { currentUser, mockReservations, mockUsers } from "@/lib/mock-data";
 import { buildHolidayMap } from "@/lib/holidays";
 import { getReservationApprovalsEnabled } from "@/lib/feature-flags";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import type { Reservation, ReservationStatus } from "@/lib/types";
+import type { Reservation, ReservationStatus, UserProfile } from "@/lib/types";
+import { cookies } from "next/headers";
+import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
 
 async function fetchReservations(): Promise<Reservation[]> {
   const supabase = await createServerSupabaseClient();
@@ -20,10 +22,12 @@ async function fetchReservations(): Promise<Reservation[]> {
       notes,
       status,
       decline_reason,
+      created_by,
       reviewed_by,
       reviewed_at,
       created_at,
       owner:profiles!reservations_user_id_fkey(full_name),
+      creator:profiles!reservations_created_by_fkey(full_name),
       reviewer:profiles!reservations_reviewed_by_fkey(full_name)
     `)
     .order("created_at", { ascending: false });
@@ -34,6 +38,8 @@ async function fetchReservations(): Promise<Reservation[]> {
     id: row.id as string,
     userId: row.user_id as string,
     userName: ((row.owner as unknown as { full_name: string } | null)?.full_name) ?? "Unknown",
+    createdByUserId: (row.created_by as string | null) ?? undefined,
+    createdByName: ((row.creator as unknown as { full_name: string } | null)?.full_name) ?? undefined,
     startDate: row.start_date as string,
     endDate: row.end_date as string,
     notes: (row.notes as string | null) ?? undefined,
@@ -46,12 +52,36 @@ async function fetchReservations(): Promise<Reservation[]> {
   }));
 }
 
+async function fetchUsers(): Promise<UserProfile[]> {
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) return mockUsers;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id,full_name,email,role,force_password_reset")
+    .order("full_name", { ascending: true });
+
+  if (error || !data) return mockUsers;
+
+  return data.map((entry) => ({
+    id: entry.id,
+    fullName: entry.full_name,
+    email: entry.email,
+    role: entry.role,
+    forcePasswordReset: entry.force_password_reset
+  }));
+}
+
 export default async function ReservationsPage() {
+  const cookieStore = await cookies();
+  const previewRole = getRolePreviewFromCookieValue(cookieStore.get("majestic-role-preview")?.value ?? null);
+  const actingUser: UserProfile = getEffectiveUser(currentUser, previewRole);
   const year = new Date().getFullYear();
-  const [reservations, holidayMap, approvalsEnabled] = await Promise.all([
+  const [reservations, holidayMap, approvalsEnabled, users] = await Promise.all([
     fetchReservations(),
     Promise.resolve(buildHolidayMap([year - 1, year, year + 1])),
-    getReservationApprovalsEnabled()
+    getReservationApprovalsEnabled(),
+    fetchUsers()
   ]);
 
   const normalizedReservations = approvalsEnabled
@@ -70,7 +100,8 @@ export default async function ReservationsPage() {
       <MonthlyReservationsCalendar
         reservations={normalizedReservations}
         holidayMap={holidayMap}
-        users={mockUsers}
+        users={users}
+        actingUser={actingUser}
         approvalsEnabled={approvalsEnabled}
       />
     </AppShell>

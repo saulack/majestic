@@ -12,6 +12,7 @@ type LogEntry = {
   id: string;
   type: "created" | "approved" | "declined";
   userName: string;
+  createdByName?: string;
   reviewerName?: string;
   startDate: string;
   endDate: string;
@@ -32,6 +33,7 @@ function buildLogEntries(reservations: Reservation[], holidayMap: HolidayMap, ap
       id: `${reservation.id}-created`,
       type: "created",
       userName: reservation.userName,
+      createdByName: reservation.createdByName,
       startDate: reservation.startDate,
       endDate: reservation.endDate,
       timestamp: reservation.createdAt,
@@ -145,11 +147,22 @@ export function ActivityLog({
 
                   <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-slate-800">
-                        {entry.holidaySummary
-                          ? `${entry.userName} booked ${entry.nights} ${entry.nights === 1 ? "day" : "days"} of ${entry.holidaySummary}`
-                          : `${entry.userName} booked ${entry.nights} ${entry.nights === 1 ? "day" : "days"}`}
-                      </p>
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">
+                          {entry.holidaySummary
+                            ? entry.createdByName && entry.createdByName !== entry.userName
+                              ? `${entry.createdByName} booked ${entry.nights} ${entry.nights === 1 ? "day" : "days"} for ${entry.userName} during ${entry.holidaySummary}`
+                              : `${entry.userName} booked ${entry.nights} ${entry.nights === 1 ? "day" : "days"} of ${entry.holidaySummary}`
+                            : entry.createdByName && entry.createdByName !== entry.userName
+                              ? `${entry.createdByName} booked ${entry.nights} ${entry.nights === 1 ? "day" : "days"} for ${entry.userName}`
+                              : `${entry.userName} booked ${entry.nights} ${entry.nights === 1 ? "day" : "days"}`}
+                        </p>
+                        {entry.createdByName && entry.createdByName !== entry.userName ? (
+                          <span className="mt-2 inline-flex rounded-full border border-[#bde3df] bg-[#f1fbf9] px-2.5 py-1 text-[11px] font-medium text-[#2f7b84]">
+                            Shared-stay friendly booking
+                          </span>
+                        ) : null}
+                      </div>
                       <time className="whitespace-nowrap text-[11px] text-slate-400 sm:text-xs">{formatRelative(entry.timestamp)}</time>
                     </div>
 

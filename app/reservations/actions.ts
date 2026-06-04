@@ -10,6 +10,8 @@ export async function createReservation(params: {
   endDate: string;
   notes: string;
   approvalEnabled: boolean;
+  bookedForUserId: string;
+  allowDoubleBooking?: boolean;
 }): Promise<ActionResult> {
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
@@ -26,30 +28,37 @@ export async function createReservation(params: {
     return { error: "You must be signed in to make a reservation." };
   }
 
-  const { startDate, endDate, notes, approvalEnabled } = params;
+  const { startDate, endDate, notes, approvalEnabled, bookedForUserId, allowDoubleBooking = false } = params;
 
   if (!startDate || !endDate) {
     return { error: "Start and end dates are required." };
+  }
+
+  if (!bookedForUserId) {
+    return { error: "Please choose who this reservation is for." };
   }
 
   if (endDate < startDate) {
     return { error: "End date must be on or after start date." };
   }
 
-  // Check for overlapping approved or pending reservations
-  const { data: conflicts } = await supabase
-    .from("reservations")
-    .select("id")
-    .lte("start_date", endDate)
-    .gte("end_date", startDate)
-    .in("status", ["pending", "approved"]);
+  if (!allowDoubleBooking) {
+    // Check for overlapping approved or pending reservations unless explicitly allowed.
+    const { data: conflicts } = await supabase
+      .from("reservations")
+      .select("id")
+      .lte("start_date", endDate)
+      .gte("end_date", startDate)
+      .in("status", ["pending", "approved"]);
 
-  if (conflicts && conflicts.length > 0) {
-    return { error: "This date range conflicts with an existing reservation." };
+    if (conflicts && conflicts.length > 0) {
+      return { error: "This date range conflicts with an existing reservation." };
+    }
   }
 
   const { error: insertError } = await supabase.from("reservations").insert({
-    user_id: user.id,
+    user_id: bookedForUserId,
+    created_by: user.id,
     start_date: startDate,
     end_date: endDate,
     notes: notes.trim() || null,

@@ -4,10 +4,10 @@ import type { AdminInvite, NotificationPreference, Reservation, UserProfile } fr
 const today = new Date();
 
 export const mockUsers: UserProfile[] = [
-  { id: "user-1", fullName: "Alex Rivera", email: "alex@example.com", role: "superadmin" },
-  { id: "user-2", fullName: "Jordan Lee", email: "jordan@example.com", role: "admin" },
-  { id: "user-3", fullName: "Taylor Brooks", email: "taylor@example.com", role: "admin" },
-  { id: "user-4", fullName: "Jamie Stone", email: "jamie@example.com", role: "user" }
+  { id: "user-1", fullName: "Alex Rivera", email: "alex@example.com", role: "superadmin", forcePasswordReset: false },
+  { id: "user-2", fullName: "Jordan Lee", email: "jordan@example.com", role: "admin", forcePasswordReset: false },
+  { id: "user-3", fullName: "Taylor Brooks", email: "taylor@example.com", role: "admin", forcePasswordReset: false },
+  { id: "user-4", fullName: "Jamie Stone", email: "jamie@example.com", role: "user", forcePasswordReset: false }
 ];
 
 export const mockReservations: Reservation[] = [
@@ -15,6 +15,8 @@ export const mockReservations: Reservation[] = [
     id: "res-1",
     userId: "user-1",
     userName: "Alex Rivera",
+    createdByUserId: "user-1",
+    createdByName: "Alex Rivera",
     startDate: formatISO(addDays(today, -22), { representation: "date" }),
     endDate: formatISO(addDays(today, -19), { representation: "date" }),
     status: "approved",
@@ -28,6 +30,8 @@ export const mockReservations: Reservation[] = [
     id: "res-2",
     userId: "user-4",
     userName: "Jamie Stone",
+    createdByUserId: "user-2",
+    createdByName: "Jordan Lee",
     startDate: formatISO(addDays(today, 8), { representation: "date" }),
     endDate: formatISO(addDays(today, 12), { representation: "date" }),
     status: "pending",
@@ -38,6 +42,8 @@ export const mockReservations: Reservation[] = [
     id: "res-3",
     userId: "user-3",
     userName: "Taylor Brooks",
+    createdByUserId: "user-3",
+    createdByName: "Taylor Brooks",
     startDate: formatISO(addDays(today, 20), { representation: "date" }),
     endDate: formatISO(addDays(today, 22), { representation: "date" }),
     status: "pending",
@@ -48,6 +54,8 @@ export const mockReservations: Reservation[] = [
     id: "res-4",
     userId: "user-4",
     userName: "Jamie Stone",
+    createdByUserId: "user-4",
+    createdByName: "Jamie Stone",
     startDate: formatISO(addDays(today, -12), { representation: "date" }),
     endDate: formatISO(addDays(today, -10), { representation: "date" }),
     status: "declined",
@@ -63,7 +71,7 @@ export const mockReservations: Reservation[] = [
 export const mockPreferences: NotificationPreference[] = [
   { userId: "user-1", channels: ["email", "sms"] },
   { userId: "user-2", channels: ["email"] },
-  { userId: "user-3", channels: ["email", "whatsapp"] }
+  { userId: "user-3", channels: ["email"] }
 ];
 
 export const mockAdminInvites: AdminInvite[] = [

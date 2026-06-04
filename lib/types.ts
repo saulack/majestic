@@ -1,4 +1,4 @@
-export type ChannelPreference = "email" | "sms" | "whatsapp";
+export type ChannelPreference = "email" | "sms";
 
 export type AppRole = "user" | "admin" | "superadmin";
 
@@ -9,12 +9,15 @@ export type UserProfile = {
   fullName: string;
   email: string;
   role: AppRole;
+  forcePasswordReset?: boolean;
 };
 
 export type Reservation = {
   id: string;
   userId: string;
   userName: string;
+  createdByUserId?: string;
+  createdByName?: string;
   startDate: string;
   endDate: string;
   status: ReservationStatus;

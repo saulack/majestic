@@ -13,13 +13,14 @@ import {
   startOfWeek,
   subMonths
 } from "date-fns";
-import { CheckCircle2, Clock, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Clock, XCircle } from "lucide-react";
 import { currentUser, mockUsers } from "@/lib/mock-data";
 import { canModerateReservation } from "@/lib/rbac";
 import { hasDateConflict, totalDaysInReservation } from "@/lib/reservation-utils";
 import { createReservation, moderateReservation } from "@/app/reservations/actions";
 import { ActivityLog } from "@/components/activity-log";
-import { parseHolidayLabel, summarizeHolidayLabels } from "@/lib/reservation-holiday-utils";
+import { ToggleSwitch } from "@/components/toggle-switch";
+import { parseHolidayLabel } from "@/lib/reservation-holiday-utils";
 import type { HolidayMap } from "@/lib/holidays";
 import type { Reservation, UserProfile } from "@/lib/types";
 
@@ -27,15 +28,16 @@ type Props = {
   reservations: Reservation[];
   holidayMap: HolidayMap;
   users?: UserProfile[];
+  actingUser?: UserProfile;
   approvalsEnabled: boolean;
 };
 
 const weekdayHeaders = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const statusConfig = {
-  approved: { label: "Booked", cls: "bg-emerald-100/70 text-emerald-800", icon: <CheckCircle2 className="inline h-3 w-3" /> },
-  declined: { label: "Declined", cls: "bg-rose-100/70 text-rose-800", icon: <XCircle className="inline h-3 w-3" /> },
-  pending: { label: "Pending", cls: "bg-amber-100 text-amber-800", icon: <Clock className="inline h-3 w-3" /> }
+  approved: { label: "Booked", cls: "bg-[#d7f2ea] text-[#1f7d6e]", icon: <CheckCircle2 className="inline h-3 w-3" /> },
+  declined: { label: "Declined", cls: "bg-[#ffe4dc] text-[#c56758]", icon: <XCircle className="inline h-3 w-3" /> },
+  pending: { label: "Pending", cls: "bg-[#d9f1f5] text-[#317f8c]", icon: <Clock className="inline h-3 w-3" /> }
 } as const;
 
 function holidayChipClass(kind: "us" | "jewish", inBookedCell: boolean) {
@@ -52,22 +54,22 @@ function normalizeRange(first: string, second: string) {
   return compareAsc(parseISO(first), parseISO(second)) <= 0 ? [first, second] : [second, first];
 }
 
-export function MonthlyReservationsCalendar({ reservations, holidayMap, users = mockUsers, approvalsEnabled }: Props) {
+export function MonthlyReservationsCalendar({ reservations, holidayMap, users = mockUsers, actingUser = currentUser, approvalsEnabled }: Props) {
   const [monthCursor, setMonthCursor] = useState(startOfMonth(new Date()));
+  const [reservationMode, setReservationMode] = useState<"self" | "other">("self");
+  const [selectedUserId, setSelectedUserId] = useState(actingUser.id);
+  const [allowDoubleBooking, setAllowDoubleBooking] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [notes, setNotes] = useState("");
   const [selectionStatus, setSelectionStatus] = useState("");
   const [formMessage, setFormMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [hoveredDay, setHoveredDay] = useState<string | null>(null);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [declineTargetId, setDeclineTargetId] = useState<string | null>(null);
   const [declineReasonText, setDeclineReasonText] = useState("");
   const [isDragging, setIsDragging] = useState(false);
 
   const dragAnchorRef = useRef<string | null>(null);
-  const touchHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const monthStart = startOfMonth(monthCursor);
   const calendarStart = startOfWeek(monthStart);
@@ -75,14 +77,9 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
 
   const activeStart = startDate;
   const activeEnd = endDate;
+  const otherUsers = users.filter((user) => user.id !== actingUser.id);
+  const bookingTargetId = reservationMode === "self" ? actingUser.id : selectedUserId;
   const selectionHasConflict = activeStart && activeEnd ? hasDateConflict(reservations, activeStart, activeEnd) : false;
-
-  const activeDay = hoveredDay ?? selectedDay;
-  const activeDayReservations = activeDay
-    ? reservations.filter((reservation) => activeDay >= reservation.startDate && activeDay <= reservation.endDate)
-    : [];
-  const activeDayHolidayLabels = activeDay ? holidayMap[activeDay] ?? [] : [];
-  const activeDayHolidayMeta = activeDayHolidayLabels.map(parseHolidayLabel);
 
   useEffect(() => {
     function onWindowMouseUp() {
@@ -104,8 +101,6 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
   }
 
   function handleCalendarClick(dayKey: string) {
-    setSelectedDay(dayKey);
-
     if (isDragging) {
       return;
     }
@@ -147,7 +142,6 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
   }
 
   function handleCalendarMouseDown(dayKey: string) {
-    setSelectedDay(dayKey);
     setIsDragging(true);
     dragAnchorRef.current = dayKey;
     setStartDate(dayKey);
@@ -156,8 +150,6 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
   }
 
   function handleCalendarMouseEnter(dayKey: string) {
-    setHoveredDay(dayKey);
-
     if (!isDragging || !dragAnchorRef.current) {
       return;
     }
@@ -174,30 +166,15 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
     dragAnchorRef.current = null;
   }
 
-  function handleTouchStart(dayKey: string) {
-    if (touchHoldTimerRef.current) {
-      clearTimeout(touchHoldTimerRef.current);
-    }
-
-    touchHoldTimerRef.current = setTimeout(() => {
-      setSelectedDay(dayKey);
-      setHoveredDay(dayKey);
-    }, 450);
-  }
-
-  function handleTouchEnd() {
-    if (touchHoldTimerRef.current) {
-      clearTimeout(touchHoldTimerRef.current);
-      touchHoldTimerRef.current = null;
-    }
-  }
-
   function clearSelection() {
     setStartDate("");
     setEndDate("");
     setNotes("");
     setSelectionStatus("");
     setFormMessage(null);
+    setReservationMode("self");
+    setSelectedUserId(actingUser.id);
+    setAllowDoubleBooking(false);
   }
 
   function handleSave() {
@@ -214,7 +191,7 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
       return;
     }
 
-    if (selectionHasConflict) {
+    if (selectionHasConflict && !allowDoubleBooking) {
       setFormMessage({ type: "error", text: "This date range conflicts with an existing reservation." });
       return;
     }
@@ -225,6 +202,8 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
         startDate: s,
         endDate: e,
         notes,
+        bookedForUserId: bookingTargetId,
+        allowDoubleBooking,
         approvalEnabled: approvalsEnabled
       });
 
@@ -270,48 +249,67 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
   return (
     <div className="grid gap-6">
       <aside className="card card-strong p-5 sm:p-6">
-        <h3 className="text-lg sm:text-xl">Create Reservation</h3>
+        <h3 className="text-lg sm:text-xl">Reservation Settings</h3>
         <p className="mt-2 text-sm text-slate-600">
-          Use the date fields, click dates, or drag across the calendar. The latest action always sets the active reservation range.
+          Configure how this reservation should be created, then choose dates directly in the calendar area.
         </p>
 
-        <div className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
-          <label className="grid gap-1.5 font-medium">
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Start date</span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => {
-                const nextStart = e.target.value;
-                setStartDate(nextStart);
+        <div className="mt-4 grid gap-4 text-sm">
+          <div className="grid gap-1.5 sm:col-span-2">
+            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Reservation for</span>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+              <div>
+                <p className="text-sm font-medium text-slate-800">{reservationMode === "self" ? "Reserve for me" : "Reserve for someone else"}</p>
+                <p className="text-sm text-slate-500">Switch on when you are booking on behalf of another user.</p>
+              </div>
+              <ToggleSwitch
+                checked={reservationMode === "other"}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    setReservationMode("other");
+                    setSelectedUserId(otherUsers[0]?.id ?? "");
+                    return;
+                  }
 
-                if (!endDate) {
-                  setEndDate(nextStart);
-                } else if (nextStart && endDate) {
-                  applyRange(nextStart, endDate, "input");
-                }
-              }}
-              className="rounded-lg border border-slate-300 px-3 py-2"
-            />
-          </label>
-          <label className="grid gap-1.5 font-medium">
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">End date</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => {
-                const nextEnd = e.target.value;
-                setEndDate(nextEnd);
+                  setReservationMode("self");
+                  setSelectedUserId(actingUser.id);
+                }}
+                srLabel="Toggle reservation target"
+                offLabel="Me"
+                onLabel="Someone else"
+              />
+            </div>
+          </div>
 
-                if (!startDate) {
-                  setStartDate(nextEnd);
-                } else if (startDate && nextEnd) {
-                  applyRange(startDate, nextEnd, "input");
-                }
-              }}
-              className="rounded-lg border border-slate-300 px-3 py-2"
-            />
-          </label>
+          {reservationMode === "other" ? (
+            <label className="grid gap-1.5 font-medium sm:col-span-2">
+              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Choose user</span>
+              <select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)} className="rounded-lg border border-slate-300 px-3 py-2">
+                {otherUsers.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.fullName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <div className="grid gap-1.5 sm:col-span-2">
+            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Double booking</span>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+              <div>
+                <p className="text-sm font-medium text-slate-800">{allowDoubleBooking ? "Double booking allowed" : "Double booking off"}</p>
+                <p className="text-sm text-slate-500">Turn this on only when two people are intentionally sharing the same stay dates.</p>
+              </div>
+              <ToggleSwitch
+                checked={allowDoubleBooking}
+                onCheckedChange={setAllowDoubleBooking}
+                srLabel="Allow double booking"
+                offLabel="Off"
+                onLabel="On"
+              />
+            </div>
+          </div>
         </div>
 
         <label className="mt-4 grid gap-1.5 text-sm font-medium">
@@ -341,24 +339,69 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
       </aside>
 
       <section className="card p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl sm:text-2xl">Monthly Reservation Calendar</h2>
-            <p className="mt-2 text-sm text-slate-600">Hover a day on desktop, or long-press on mobile, to inspect holidays and reservations.</p>
-          </div>
-          <div className="flex gap-2">
-            <button type="button" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm" onClick={() => setMonthCursor(subMonths(monthCursor, 1))}>
-              Prev
-            </button>
-            <button type="button" className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm" onClick={() => setMonthCursor(addMonths(monthCursor, 1))}>
-              Next
-            </button>
-          </div>
+        <h2 className="text-xl sm:text-2xl">Monthly Reservation Calendar</h2>
+
+        <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+          <label className="grid gap-1.5 font-medium">
+            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Start date</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                const nextStart = e.target.value;
+                setStartDate(nextStart);
+
+                if (!endDate) {
+                  setEndDate(nextStart);
+                } else if (nextStart && endDate) {
+                  applyRange(nextStart, endDate, "input");
+                }
+              }}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+            />
+          </label>
+          <label className="grid gap-1.5 font-medium">
+            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">End date</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                const nextEnd = e.target.value;
+                setEndDate(nextEnd);
+
+                if (!startDate) {
+                  setStartDate(nextEnd);
+                } else if (startDate && nextEnd) {
+                  applyRange(startDate, nextEnd, "input");
+                }
+              }}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+            />
+          </label>
         </div>
 
-        <p className="mt-3 text-sm text-slate-600">{format(monthCursor, "MMMM yyyy")}</p>
+        <p className="mt-4 text-2xl font-bold text-slate-900 sm:text-3xl">{format(monthCursor, "MMMM yyyy")}</p>
 
-        <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-500 sm:text-xs">
+        <div className="mt-3 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
+            onClick={() => setMonthCursor(subMonths(monthCursor, 1))}
+            aria-label="Previous month"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
+            onClick={() => setMonthCursor(addMonths(monthCursor, 1))}
+            aria-label="Next month"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-5 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-500 sm:text-xs">
           {weekdayHeaders.map((day) => (
             <div key={day}>{day}</div>
           ))}
@@ -370,22 +413,26 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
             const reservationsOnDay = reservations.filter((reservation) => dayKey >= reservation.startDate && dayKey <= reservation.endDate);
             const holidays = holidayMap[dayKey] ?? [];
             const isSelected = activeStart && activeEnd ? dayKey >= activeStart && dayKey <= activeEnd : false;
-            const isFocused = activeDay === dayKey;
             const primaryReservation =
               reservationsOnDay.find((reservation) => reservation.status === "approved") ??
               reservationsOnDay.find((reservation) => reservation.status === "pending") ??
               reservationsOnDay[0];
+            const hasSharedStay = reservationsOnDay.length > 1;
             const isBookedCell = Boolean(primaryReservation);
-            const isOwnReservation = primaryReservation?.userId === currentUser.id;
+            const isOwnReservation = primaryReservation?.userId === actingUser.id;
+            const sharedStayGuests = reservationsOnDay.slice(0, 2);
+            const extraSharedStayCount = Math.max(reservationsOnDay.length - sharedStayGuests.length, 0);
 
             const bookedCellCls =
-              primaryReservation?.status === "declined"
+              hasSharedStay
+                ? "border-[#6bbfc7] bg-[linear-gradient(135deg,#e6fbf6_0%,#b8ecdf_38%,#9fd8eb_100%)] text-[#103b44] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                : primaryReservation?.status === "declined"
                 ? "bg-rose-300 text-rose-900 border-rose-400"
                 : !isOwnReservation
                   ? "bg-slate-300 text-slate-900 border-slate-400"
                   : primaryReservation?.status === "pending"
-                  ? "bg-amber-400 text-amber-950 border-amber-500"
-                  : "bg-emerald-600 text-white border-emerald-700";
+                  ? "bg-[#9fd9e2] text-[#184f5a] border-[#7fc1cc]"
+                  : "bg-[#62bea9] text-white border-[#49a38f]";
 
             return (
               <button
@@ -395,25 +442,36 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
                 onMouseDown={() => handleCalendarMouseDown(dayKey)}
                 onMouseEnter={() => handleCalendarMouseEnter(dayKey)}
                 onMouseUp={() => handleCalendarMouseUp(dayKey)}
-                onMouseLeave={() => setHoveredDay(null)}
-                onFocus={() => setHoveredDay(dayKey)}
-                onBlur={() => setHoveredDay(null)}
-                onTouchStart={() => handleTouchStart(dayKey)}
-                onTouchEnd={handleTouchEnd}
                 className={[
                   "min-h-24 rounded-lg border p-2 text-left text-xs transition sm:min-h-28",
                   isSameMonth(day, monthCursor) ? "" : "opacity-65",
                   isBookedCell ? bookedCellCls : "border-slate-200 bg-white",
-                  isSelected ? "ring-2 ring-amber-500 ring-offset-1" : "",
-                  isFocused ? "shadow-[0_0_0_1px_rgba(153,122,32,0.3)]" : ""
+                  isSelected ? "ring-2 ring-amber-500 ring-offset-1" : ""
                 ].join(" ")}
               >
                 <div className={`text-xs font-semibold ${isBookedCell ? "text-inherit" : "text-slate-800"}`}>{format(day, "d")}</div>
 
                 {primaryReservation ? (
                   <div className="mt-2">
-                    <p className="truncate text-[11px] font-semibold leading-tight">{primaryReservation.userName}</p>
-                    {reservationsOnDay.length > 1 ? <p className="mt-0.5 text-[10px]">+{reservationsOnDay.length - 1} more</p> : null}
+                    {hasSharedStay ? (
+                      <div className="space-y-1">
+                        {sharedStayGuests.map((reservation) => (
+                          <p key={reservation.id} className="truncate rounded-md bg-white/55 px-1.5 py-0.5 text-[10px] font-semibold leading-tight text-[#103b44] backdrop-blur-[1px]">
+                            {reservation.userName}
+                          </p>
+                        ))}
+                        {extraSharedStayCount > 0 ? (
+                          <p className="text-[10px] font-medium text-[#245f68]">+{extraSharedStayCount} more</p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="truncate text-[11px] font-semibold leading-tight">{primaryReservation.userName}</p>
+                    )}
+                    {hasSharedStay ? (
+                      <div className="mt-1 inline-flex items-center rounded-full border border-white/50 bg-white/45 px-1.5 py-0.5 text-[10px] font-medium text-[#245f68]">
+                        Shared stay
+                      </div>
+                    ) : null}
                   </div>
                 ) : holidays.length > 0 ? (
                   holidays.slice(0, 2).map((holiday) => {
@@ -447,7 +505,9 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-slate-600">
-            Active range: {activeStart || "-"} to {activeEnd || "-"}
+            {selectionHasConflict && allowDoubleBooking
+              ? `Active range: ${activeStart || "-"} to ${activeEnd || "-"} · overlap allowed`
+              : `Active range: ${activeStart || "-"} to ${activeEnd || "-"}`}
           </p>
           <button
             type="button"
@@ -457,65 +517,6 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
           >
             {isPending ? "Reserving..." : approvalsEnabled ? "Reserve dates (submit for approval)" : "Reserve dates"}
           </button>
-        </div>
-
-        <div className="mt-4 rounded-xl border border-slate-200 bg-[#fbf8f2] p-4">
-          {activeDay ? (
-            <div className="grid gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">{format(parseISO(activeDay), "EEEE, MMMM d, yyyy")}</p>
-                  <p className="text-xs text-slate-500">Hover a day or long-press on mobile to pin it here.</p>
-                </div>
-                <button type="button" className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs" onClick={() => setSelectedDay(null)}>
-                  Clear pin
-                </button>
-              </div>
-
-              <div className="grid gap-2 md:grid-cols-2">
-                <div className="rounded-lg border border-slate-200 bg-white p-3">
-                  <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Holiday info</p>
-                  {activeDayHolidayMeta.length > 0 ? (
-                    <div className="mt-2 grid gap-2">
-                      {activeDayHolidayMeta.map((holiday) => (
-                        <div key={holiday.raw} className={`rounded-lg border px-3 py-2 text-sm ${holidayChipClass(holiday.kind, false)}`}>
-                          {holiday.name}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-sm text-slate-500">No holiday on this date.</p>
-                  )}
-                </div>
-
-                <div className="rounded-lg border border-slate-200 bg-white p-3">
-                  <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Reservations on this day</p>
-                  {activeDayReservations.length > 0 ? (
-                    <div className="mt-2 grid gap-2">
-                      {activeDayReservations.map((reservation) => (
-                        <div key={reservation.id} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                          <p className="font-medium text-slate-800">{reservation.userName}</p>
-                          <p className="text-xs text-slate-500">
-                            {totalDaysInReservation(reservation)} {totalDaysInReservation(reservation) === 1 ? "night" : "nights"} • {reservation.status === "declined" ? "declined" : reservation.status === "pending" ? "pending" : "booked"}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-sm text-slate-500">No reservation on this date.</p>
-                  )}
-                </div>
-              </div>
-
-              {activeDayHolidayMeta.length > 0 ? (
-                <p className="text-xs text-slate-500">
-                  Holiday focus: {summarizeHolidayLabels(activeDayHolidayMeta)}
-                </p>
-              ) : null}
-            </div>
-          ) : (
-            <p className="text-sm text-slate-500">Hover over a day or long-press a day on mobile to preview details here.</p>
-          )}
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
@@ -534,8 +535,8 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
 
             <div className="grid gap-4">
               {reservations.map((reservation) => {
-                const owner = users.find((u) => u.id === reservation.userId) ?? currentUser;
-                const canModerate = canModerateReservation(currentUser, owner, reservation);
+                const owner = users.find((u) => u.id === reservation.userId) ?? actingUser;
+                const canModerate = canModerateReservation(actingUser, owner, reservation);
                 const msg = reservation.status === "approved" ? "Booked" : reservation.status === "declined" ? "Declined" : "Pending";
 
                 return (
@@ -607,7 +608,7 @@ export function MonthlyReservationsCalendar({ reservations, holidayMap, users = 
                             type="button"
                             disabled={!declineReasonText.trim() || isPending}
                             onClick={() => handleDeclineSubmit(reservation.id)}
-                            className="rounded-lg bg-[#6a3d33] px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                            className="rounded-lg bg-amber-700 px-3 py-1.5 text-xs text-white disabled:opacity-50"
                           >
                             Submit Denial
                           </button>

@@ -101,7 +101,7 @@ export function CheckoutChecklistManager({ initialItems = defaultItems }: { init
       ) : (
         <ul className="mt-4 grid gap-2">
           {items.map((item) => (
-            <li key={item.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-[#fbf8f2] px-3 py-2 text-sm">
+            <li key={item.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-[#f2fbf8] px-3 py-2 text-sm">
               <input
                 type="checkbox"
                 checked={item.done}

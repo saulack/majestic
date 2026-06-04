@@ -1,61 +1,42 @@
-import { AppShell } from "@/components/app-shell";
-import { BiometricAuthManager } from "@/app/account/biometric-auth-manager";
-import { PasswordManager } from "@/app/account/password-manager";
+import { AccountClientPage } from "@/app/account/account-client";
 import { currentUser, mockPreferences } from "@/lib/mock-data";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
+import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
 
-export default function AccountPage() {
-  const preferences = mockPreferences.find((item) => item.userId === currentUser.id);
+export default async function AccountPage() {
+  const cookieStore = await cookies();
+  const previewRole = getRolePreviewFromCookieValue(cookieStore.get("majestic-role-preview")?.value ?? null);
+  const supabase = await createServerSupabaseClient();
+  let user = getEffectiveUser(currentUser, previewRole);
 
-  return (
-    <AppShell>
-      <section className="card relative overflow-hidden p-5 sm:p-6">
-        <h2 className="text-xl sm:text-2xl">My Account</h2>
-        <p className="mt-2 text-sm text-slate-600">Edit your profile details and notification preferences.</p>
+  if (supabase) {
+    const {
+      data: { user: authUser }
+    } = await supabase.auth.getUser();
 
-        <div className="mt-6 grid gap-5 sm:gap-6 lg:grid-cols-2">
-          <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
-            <h3 className="text-lg font-semibold">Profile Details</h3>
-            <form className="mt-4 grid gap-4 text-sm">
-              <label className="grid gap-1.5 font-medium">
-                <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Full name</span>
-                <input defaultValue={currentUser.fullName} className="rounded-lg border border-slate-300 px-3 py-2" />
-              </label>
-              <label className="grid gap-1.5 font-medium">
-                <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Email</span>
-                <input defaultValue={currentUser.email} className="rounded-lg border border-slate-300 px-3 py-2" />
-              </label>
-              <button type="button" className="w-fit rounded-lg bg-amber-700 px-4 py-2 text-white">
-                Save profile
-              </button>
-            </form>
-          </div>
+    if (authUser) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id,full_name,email,role")
+        .eq("id", authUser.id)
+        .maybeSingle();
 
-          <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
-            <h3 className="text-lg font-semibold">Notification Preferences</h3>
-            <form className="mt-4 grid gap-4 text-sm">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" defaultChecked={preferences?.channels.includes("email")} />
-                Email
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" defaultChecked={preferences?.channels.includes("sms")} />
-                SMS
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" defaultChecked={preferences?.channels.includes("whatsapp")} />
-                WhatsApp
-              </label>
-              <button type="button" className="w-fit rounded-lg bg-amber-700 px-4 py-2 text-white">
-                Save preferences
-              </button>
-            </form>
-          </div>
+      if (profile) {
+        user = getEffectiveUser(
+          {
+            id: profile.id,
+            fullName: profile.full_name,
+            email: profile.email,
+            role: profile.role
+          },
+          previewRole
+        );
+      }
+    }
+  }
 
-          <PasswordManager />
+  const preferences = mockPreferences.find((item) => item.userId === user.id);
 
-          <BiometricAuthManager />
-        </div>
-      </section>
-    </AppShell>
-  );
+  return <AccountClientPage user={user} preferences={preferences} />;
 }

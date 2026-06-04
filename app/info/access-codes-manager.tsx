@@ -131,7 +131,7 @@ export function AccessCodesManager({ initialAccessCodes = defaultAccessCodes }: 
       <div className="mt-5 grid gap-3">
         {sortedAccessCodes.length > 0 ? (
           sortedAccessCodes.map((accessCode) => (
-            <article key={accessCode.id} className="rounded-xl border border-slate-200 bg-[#fbf8f2] p-4">
+            <article key={accessCode.id} className="rounded-xl border border-slate-200 bg-[#f2fbf8] p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h4 className="text-base font-semibold text-slate-900">{accessCode.title}</h4>
@@ -168,7 +168,7 @@ export function AccessCodesManager({ initialAccessCodes = defaultAccessCodes }: 
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
-          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-[#fbf8f2] p-5 shadow-2xl sm:p-6">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-[#f2fbf8] p-5 shadow-2xl sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-xl font-semibold">Add access code</h3>
@@ -237,7 +237,7 @@ export function AccessCodesManager({ initialAccessCodes = defaultAccessCodes }: 
 
       {verifyOpenForId ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-[#fbf8f2] p-5 shadow-2xl sm:p-6">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-[#f2fbf8] p-5 shadow-2xl sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-xl font-semibold">Verify password</h3>
