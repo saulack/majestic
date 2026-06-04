@@ -90,6 +90,7 @@ export type MaintenanceSummary = {
   typeId: string;
   typeName: string;
   thresholdDays: number;
+  hasLoggedMaintenance: boolean;
   lastMaintenanceDate?: string;
   daysSinceLastMaintenance: number | null;
   needsAttention: boolean;

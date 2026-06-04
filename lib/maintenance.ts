@@ -20,17 +20,18 @@ export function buildMaintenanceSummaries(
       .filter((record) => record.typeId === maintenanceType.id && parseISO(record.scheduledFor) <= normalizedReferenceDate)
       .sort((left, right) => (left.scheduledFor < right.scheduledFor ? 1 : -1))[0];
 
-    const daysSinceLastMaintenance = lastRecord
-      ? differenceInCalendarDays(normalizedReferenceDate, parseISO(lastRecord.scheduledFor))
-      : null;
+    const baselineDate = lastRecord ? parseISO(lastRecord.scheduledFor) : parseISO(maintenanceType.createdAt);
+    const daysSinceLastMaintenance = Math.max(0, differenceInCalendarDays(normalizedReferenceDate, startOfDay(baselineDate)));
+    const hasLoggedMaintenance = Boolean(lastRecord);
 
     return {
       typeId: maintenanceType.id,
       typeName: maintenanceType.name,
       thresholdDays: maintenanceType.thresholdDays,
+      hasLoggedMaintenance,
       lastMaintenanceDate: lastRecord?.scheduledFor,
       daysSinceLastMaintenance,
-      needsAttention: daysSinceLastMaintenance === null || daysSinceLastMaintenance >= maintenanceType.thresholdDays
+      needsAttention: daysSinceLastMaintenance >= maintenanceType.thresholdDays
     };
   });
 }
@@ -47,11 +48,8 @@ export function getDueMaintenanceTypes(
       .filter((record) => record.typeId === maintenanceType.id && parseISO(record.scheduledFor) <= reservationDate)
       .sort((left, right) => (left.scheduledFor < right.scheduledFor ? 1 : -1))[0];
 
-    if (!lastRecord) {
-      return true;
-    }
-
-    const daysSinceLastMaintenance = differenceInCalendarDays(reservationDate, parseISO(lastRecord.scheduledFor));
+    const baselineDate = lastRecord ? parseISO(lastRecord.scheduledFor) : parseISO(maintenanceType.createdAt);
+    const daysSinceLastMaintenance = Math.max(0, differenceInCalendarDays(startOfDay(reservationDate), startOfDay(baselineDate)));
     return daysSinceLastMaintenance >= maintenanceType.thresholdDays;
   });
 }

@@ -146,7 +146,7 @@ export function MaintenanceClientPage({
           <p className={`mt-4 text-sm ${status.error ? "text-rose-700" : "text-emerald-700"}`}>{status.error ?? status.message}</p>
         ) : null}
 
-        <div className="mt-4 rounded-xl border border-[#bde3df] bg-[#f1fbf9] px-4 py-3 text-sm text-[#2f7b84]">
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           Signed in as {actingUser.fullName}. Every maintenance log also appears in the shared activity log.
         </div>
       </div>
@@ -227,7 +227,7 @@ export function MaintenanceClientPage({
                     <p className="mt-1 text-sm text-slate-600">Scheduled for {record.scheduledFor}</p>
                     <p className="mt-1 text-sm text-slate-500">Logged by {record.createdByName}</p>
                   </div>
-                  <span className="rounded-full border border-[#bde3df] bg-[#f1fbf9] px-3 py-1 text-xs font-medium text-[#2f7b84]">Maintenance</span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">Maintenance</span>
                 </div>
               </article>
             ))

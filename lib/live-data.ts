@@ -311,6 +311,17 @@ export async function getMaintenanceTypes(): Promise<MaintenanceType[]> {
       .filter((entry) => entry.length > 0)
   );
 
+  const categoryDisplayNames = new Map<string, string>();
+  for (const entry of maintenanceContacts) {
+    const name = (entry.maintenance_category || entry.role_function || "").trim();
+    const normalized = name.toLowerCase();
+    if (!name || categoryDisplayNames.has(normalized)) {
+      continue;
+    }
+
+    categoryDisplayNames.set(normalized, name);
+  }
+
   if (activeCategoryNames.size === 0) {
     return [];
   }
@@ -322,6 +333,38 @@ export async function getMaintenanceTypes(): Promise<MaintenanceType[]> {
 
   if (error || !data) {
     return [];
+  }
+
+  const existingTypeNames = new Set(data.map((entry) => entry.name.trim().toLowerCase()));
+  const missingCategories = [...activeCategoryNames].filter((name) => !existingTypeNames.has(name));
+
+  if (missingCategories.length > 0) {
+    const admin = createAdminClient();
+    if (admin) {
+      await admin.from("maintenance_types").insert(
+        missingCategories.map((name) => ({
+          name: categoryDisplayNames.get(name) ?? name,
+          threshold_days: 30
+        }))
+      );
+
+      const { data: refreshedData, error: refreshedError } = await supabase
+        .from("maintenance_types")
+        .select("id,name,threshold_days,created_by,created_at")
+        .order("name", { ascending: true });
+
+      if (!refreshedError && refreshedData) {
+        return refreshedData
+          .filter((entry) => activeCategoryNames.has(entry.name.trim().toLowerCase()))
+          .map((entry) => ({
+            id: entry.id,
+            name: entry.name,
+            thresholdDays: entry.threshold_days,
+            createdByUserId: (entry.created_by as string | null) ?? undefined,
+            createdAt: entry.created_at
+          }));
+      }
+    }
   }
 
   return data

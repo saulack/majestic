@@ -103,7 +103,9 @@ export default async function HomePage() {
                   <div>
                     <h4 className="text-base font-semibold text-slate-900">{summary.typeName}</h4>
                     <p className="mt-1 text-sm text-slate-600">
-                      {summary.daysSinceLastMaintenance === null ? "No maintenance logged yet" : `${summary.daysSinceLastMaintenance} days since last maintenance`}
+                      {summary.hasLoggedMaintenance
+                        ? `${summary.daysSinceLastMaintenance} days since last maintenance`
+                        : `${summary.daysSinceLastMaintenance} days since category was added`}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
@@ -115,7 +117,7 @@ export default async function HomePage() {
                     </span>
                   </div>
                 </div>
-                <p className="mt-2 text-sm text-slate-500">{summary.lastMaintenanceDate ? `Last logged: ${summary.lastMaintenanceDate}` : "Schedule the first maintenance entry."}</p>
+                <p className="mt-2 text-sm text-slate-500">{summary.lastMaintenanceDate ? `Last logged: ${summary.lastMaintenanceDate}` : "Counter started when this category was created."}</p>
               </article>
             );
           })}

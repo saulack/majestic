@@ -139,18 +139,18 @@ export function ContactsManager({ initialContacts = defaultContacts }: { initial
       <div className="mt-5 grid gap-3">
         {sortedContacts.length > 0 ? (
           sortedContacts.map((contact) => (
-            <article key={contact.id} className="rounded-xl border border-slate-200 bg-[#f2fbf8] p-4">
+            <article key={contact.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h4 className="text-base font-semibold text-slate-900">{contact.name}</h4>
                     {contact.isStaff ? (
-                      <span className="rounded-full border border-[#7a92ba]/50 bg-[#e7eef8] px-2.5 py-0.5 text-[11px] font-medium text-[#4d678c]">
+                      <span className="rounded-full border border-slate-300 bg-white px-2.5 py-0.5 text-[11px] font-medium text-slate-700">
                         Majestic Staff
                       </span>
                     ) : null}
                     {contact.isMaintenance ? (
-                      <span className="rounded-full border border-[#5a9aaf]/40 bg-[#e5f6fb] px-2.5 py-0.5 text-[11px] font-medium text-[#2f7b84]">
+                      <span className="rounded-full border border-slate-300 bg-white px-2.5 py-0.5 text-[11px] font-medium text-slate-700">
                         Maintenance: {contact.maintenanceCategory || contact.function}
                       </span>
                     ) : null}
@@ -178,7 +178,7 @@ export function ContactsManager({ initialContacts = defaultContacts }: { initial
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6">
-          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-[#f2fbf8] p-5 shadow-2xl sm:p-6">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-2xl sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-xl font-semibold">Create contact</h3>

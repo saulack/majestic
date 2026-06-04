@@ -97,14 +97,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: profileUpsertError.message }, { status: 400 });
   }
 
-  const { error: consumeError } = await admin
+  const { data: consumedInvite, error: consumeError } = await admin
     .from("signup_invites")
     .update({ consumed_by: createdUser.user.id, consumed_at: new Date().toISOString() })
     .eq("token", inviteToken)
-    .is("consumed_at", null);
+    .is("consumed_at", null)
+    .select("token")
+    .maybeSingle();
 
-  if (consumeError) {
-    return NextResponse.json({ error: consumeError.message }, { status: 400 });
+  if (consumeError || !consumedInvite) {
+    await admin.auth.admin.deleteUser(createdUser.user.id);
+    return NextResponse.json({ error: consumeError?.message ?? "This invite link is no longer valid." }, { status: 400 });
   }
 
   return NextResponse.json({ message: "Account created. You can now sign in.", loginEmail: email });
