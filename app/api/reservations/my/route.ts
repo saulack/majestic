@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticated } from "@/lib/admin-auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type UpdateReservationInput = {
@@ -20,7 +21,8 @@ export async function PATCH(request: Request) {
   }
 
   const supabase = await createServerSupabaseClient();
-  if (!supabase) {
+  const admin = createAdminClient();
+  if (!supabase || !admin) {
     return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
@@ -38,7 +40,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "End date must be on or after start date." }, { status: 400 });
   }
 
-  const { data: existingReservation, error: existingError } = await supabase
+  const { data: existingReservation, error: existingError } = await admin
     .from("reservations")
     .select("id,user_id,shared_with_user_ids")
     .eq("id", reservationId)
@@ -52,7 +54,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "You can only edit your own reservations." }, { status: 403 });
   }
 
-  const { data: conflicts } = await supabase
+  const { data: conflicts } = await admin
     .from("reservations")
     .select("id,user_id,shared_with_user_ids")
     .lte("start_date", endDate)
@@ -71,7 +73,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "This date range conflicts with an existing reservation." }, { status: 400 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from("reservations")
     .update({
       start_date: startDate,
@@ -110,7 +112,8 @@ export async function DELETE(request: Request) {
   }
 
   const supabase = await createServerSupabaseClient();
-  if (!supabase) {
+  const admin = createAdminClient();
+  if (!supabase || !admin) {
     return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
@@ -121,7 +124,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Reservation id is required." }, { status: 400 });
   }
 
-  const { data: existingReservation, error: existingError } = await supabase
+  const { data: existingReservation, error: existingError } = await admin
     .from("reservations")
     .select("id,user_id")
     .eq("id", reservationId)
@@ -135,7 +138,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "You can only delete your own reservations." }, { status: 403 });
   }
 
-  const { error } = await supabase
+  const { error } = await admin
     .from("reservations")
     .delete()
     .eq("id", reservationId)

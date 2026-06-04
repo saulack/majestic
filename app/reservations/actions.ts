@@ -19,7 +19,12 @@ export async function createReservation(params: {
   sharedWithUserIds?: string[];
 }): Promise<ActionResult> {
   const supabase = await createServerSupabaseClient();
+  const admin = createAdminClient();
   if (!supabase) {
+    return { error: "Supabase is not configured on the server." };
+  }
+
+  if (!admin) {
     return { error: "Supabase is not configured on the server." };
   }
 
@@ -35,7 +40,7 @@ export async function createReservation(params: {
   const { startDate, endDate, notes, approvalEnabled, bookedForUserId, allowDoubleBooking = false } = params;
   const sharedWithUserIds = allowDoubleBooking ? [...new Set((params.sharedWithUserIds ?? []).map((entry) => entry.trim()).filter(Boolean))] : [];
 
-  const { data: actingProfile } = await supabase
+  const { data: actingProfile } = await admin
     .from("profiles")
     .select("role,full_name")
     .eq("id", user.id)
@@ -64,7 +69,7 @@ export async function createReservation(params: {
   }
 
   // Check for overlapping approved or pending reservations.
-  const { data: conflicts } = await supabase
+  const { data: conflicts } = await admin
     .from("reservations")
     .select("id,user_id,shared_with_user_ids")
     .lte("start_date", endDate)
@@ -86,7 +91,7 @@ export async function createReservation(params: {
     return { error: "This date range conflicts with a reservation that is not shared with the selected user set." };
   }
 
-  const { data: insertedReservation, error: insertError } = await supabase
+  const { data: insertedReservation, error: insertError } = await admin
     .from("reservations")
     .insert({
       user_id: bookedForUserId,
@@ -109,8 +114,8 @@ export async function createReservation(params: {
   }
 
   const [maintenanceTypesResult, maintenanceRecordsResult] = await Promise.all([
-    supabase.from("maintenance_types").select("id,name,threshold_days,created_by,created_at").order("name", { ascending: true }),
-    supabase
+    admin.from("maintenance_types").select("id,name,threshold_days,created_by,created_at").order("name", { ascending: true }),
+    admin
       .from("maintenance_records")
       .select(`
         id,
@@ -123,7 +128,7 @@ export async function createReservation(params: {
       .order("scheduled_for", { ascending: false })
   ]);
 
-  const { data: maintenanceContactsResult } = await supabase
+  const { data: maintenanceContactsResult } = await admin
     .from("info_contacts")
     .select("name,number,email,address,role_function,maintenance_category")
     .eq("is_maintenance", true)
@@ -172,60 +177,53 @@ export async function createReservation(params: {
   }
 
   if (dueMaintenanceTypes.length > 0) {
-    const admin = createAdminClient();
-
-    if (admin) {
-      await admin.from("maintenance_notifications").insert(
-        dueMaintenanceTypes.map((maintenanceType) => ({
-          maintenance_type_id: maintenanceType.id,
-          reservation_id: insertedReservation.id,
-          notified_user_id: insertedReservation.user_id,
-          reservation_start_date: insertedReservation.start_date,
-          reservation_end_date: insertedReservation.end_date,
-          triggered_on: insertedReservation.end_date
-        }))
-      );
-    }
+    await admin.from("maintenance_notifications").insert(
+      dueMaintenanceTypes.map((maintenanceType) => ({
+        maintenance_type_id: maintenanceType.id,
+        reservation_id: insertedReservation.id,
+        notified_user_id: insertedReservation.user_id,
+        reservation_start_date: insertedReservation.start_date,
+        reservation_end_date: insertedReservation.end_date,
+        triggered_on: insertedReservation.end_date
+      }))
+    );
   }
 
-  const admin = createAdminClient();
-  if (admin) {
-    const [notificationPreferenceResult, bookedUserResult] = await Promise.all([
-      admin
-        .from("notification_preferences")
-        .select("reservation_confirmation_email,reservation_booked_by_other_email,email_enabled")
-        .eq("user_id", insertedReservation.user_id)
-        .maybeSingle(),
-      admin
-        .from("profiles")
-        .select("full_name,email")
-        .eq("id", insertedReservation.user_id)
-        .maybeSingle()
-    ]);
+  const [notificationPreferenceResult, bookedUserResult] = await Promise.all([
+    admin
+      .from("notification_preferences")
+      .select("reservation_confirmation_email,reservation_booked_by_other_email,email_enabled")
+      .eq("user_id", insertedReservation.user_id)
+      .maybeSingle(),
+    admin
+      .from("profiles")
+      .select("full_name,email")
+      .eq("id", insertedReservation.user_id)
+      .maybeSingle()
+  ]);
 
-    const bookedByOtherUser = insertedReservation.user_id !== user.id;
-    const shouldSendConfirmation = bookedByOtherUser
-      ? Boolean(notificationPreferenceResult.data?.reservation_booked_by_other_email)
-      : Boolean(notificationPreferenceResult.data?.reservation_confirmation_email);
+  const bookedByOtherUser = insertedReservation.user_id !== user.id;
+  const shouldSendConfirmation = bookedByOtherUser
+    ? Boolean(notificationPreferenceResult.data?.reservation_booked_by_other_email)
+    : Boolean(notificationPreferenceResult.data?.reservation_confirmation_email);
 
-    if (!notificationPreferenceResult.error && !bookedUserResult.error && shouldSendConfirmation && notificationPreferenceResult.data?.email_enabled && bookedUserResult.data?.email) {
-      await sendReservationConfirmationEmail({
-        email: bookedUserResult.data.email,
-        fullName: bookedUserResult.data.full_name,
-        bookingDate: insertedReservation.created_at,
-        startDate: insertedReservation.start_date,
-        endDate: insertedReservation.end_date,
-        durationNights:
-          Math.max(
-            0,
-            Math.round((new Date(insertedReservation.end_date).getTime() - new Date(insertedReservation.start_date).getTime()) / (1000 * 60 * 60 * 24))
-          ) + 1,
-        bookedByName:
-          bookedByOtherUser
-            ? actingProfile?.full_name?.trim() || "another user"
-            : undefined
-      });
-    }
+  if (!notificationPreferenceResult.error && !bookedUserResult.error && shouldSendConfirmation && notificationPreferenceResult.data?.email_enabled && bookedUserResult.data?.email) {
+    await sendReservationConfirmationEmail({
+      email: bookedUserResult.data.email,
+      fullName: bookedUserResult.data.full_name,
+      bookingDate: insertedReservation.created_at,
+      startDate: insertedReservation.start_date,
+      endDate: insertedReservation.end_date,
+      durationNights:
+        Math.max(
+          0,
+          Math.round((new Date(insertedReservation.end_date).getTime() - new Date(insertedReservation.start_date).getTime()) / (1000 * 60 * 60 * 24))
+        ) + 1,
+      bookedByName:
+        bookedByOtherUser
+          ? actingProfile?.full_name?.trim() || "another user"
+          : undefined
+    });
   }
 
   revalidatePath("/reservations");
@@ -248,7 +246,12 @@ export async function moderateReservation(
   }
 
   const supabase = await createServerSupabaseClient();
+  const admin = createAdminClient();
   if (!supabase) {
+    return { error: "Supabase is not configured on the server." };
+  }
+
+  if (!admin) {
     return { error: "Supabase is not configured on the server." };
   }
 
@@ -262,7 +265,7 @@ export async function moderateReservation(
   }
 
   // Get the acting user's role
-  const { data: actingProfile } = await supabase
+  const { data: actingProfile } = await admin
     .from("profiles")
     .select("role")
     .eq("id", user.id)
@@ -273,7 +276,7 @@ export async function moderateReservation(
   }
 
   // Fetch the reservation and its owner's profile
-  const { data: reservation } = await supabase
+  const { data: reservation } = await admin
     .from("reservations")
     .select("id, user_id, profiles!reservations_user_id_fkey(role)")
     .eq("id", reservationId)
@@ -287,7 +290,7 @@ export async function moderateReservation(
     return { error: "You cannot moderate your own reservation." };
   }
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await admin
     .from("reservations")
     .update({
       status: newStatus,
