@@ -1,5 +1,6 @@
 "use client";
 
+import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { MaintenanceRecord, MaintenanceThresholdApproval, MaintenanceType, UserProfile } from "@/lib/types";
@@ -8,6 +9,7 @@ type ApiResult = {
   message?: string;
   error?: string;
   record?: MaintenanceRecord;
+  recordId?: string;
 };
 
 export function MaintenanceClientPage({
@@ -109,6 +111,36 @@ export function MaintenanceClientPage({
       }));
     } finally {
       setThresholdSubmittingByType((current) => ({ ...current, [maintenanceTypeId]: false }));
+    }
+  }
+
+  async function cancelMaintenanceRecord(recordId: string) {
+    const confirmed = window.confirm("Cancel this maintenance booking?");
+    if (!confirmed) {
+      return;
+    }
+
+    setSubmitting(true);
+    setStatus(null);
+
+    try {
+      const response = await fetch("/api/maintenance/records", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recordId })
+      });
+
+      const payload = (await response.json()) as ApiResult;
+      setStatus(payload);
+
+      if (response.ok) {
+        setRecords((current) => current.filter((record) => record.id !== recordId));
+        router.refresh();
+      }
+    } catch {
+      setStatus({ error: "Request failed." });
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -253,7 +285,21 @@ export function MaintenanceClientPage({
                     <p className="mt-1 text-sm text-slate-600">Scheduled for {record.scheduledFor}</p>
                     <p className="mt-1 text-sm text-slate-500">Logged by {record.createdByName}</p>
                   </div>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">Maintenance</span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">Maintenance</span>
+                    {record.createdByUserId === actingUser.id && record.scheduledFor >= format(new Date(), "yyyy-MM-dd") ? (
+                      <button
+                        type="button"
+                        disabled={submitting}
+                        onClick={() => {
+                          void cancelMaintenanceRecord(record.id);
+                        }}
+                        className="rounded-lg border border-rose-300 px-3 py-1 text-xs font-medium text-rose-700 disabled:opacity-60"
+                      >
+                        Cancel booking
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               </article>
             ))

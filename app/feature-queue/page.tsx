@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { FeatureQueueClient } from "@/app/feature-queue/feature-queue-client";
-import { getAuthenticatedUserProfile, getQueuedFeatureRequests } from "@/lib/live-data";
+import { getAllFeatureRequests, getAuthenticatedUserProfile, getFeatureRequestVoteCounts } from "@/lib/live-data";
 import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
 import { isSuperadmin } from "@/lib/rbac";
 
@@ -20,11 +20,15 @@ export default async function FeatureQueuePage() {
     redirect("/");
   }
 
-  const requests = await getQueuedFeatureRequests();
+  const [requests, voteCounts] = await Promise.all([getAllFeatureRequests(), getFeatureRequestVoteCounts()]);
+  const hydratedRequests = requests.map((request) => ({
+    ...request,
+    voteCount: voteCounts[request.id] ?? 0
+  }));
 
   return (
     <AppShell initialRole={actingUser.role} initialPreviewRole={previewRole}>
-      <FeatureQueueClient requests={requests} />
+      <FeatureQueueClient requests={hydratedRequests} />
     </AppShell>
   );
 }

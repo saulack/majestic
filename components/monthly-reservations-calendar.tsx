@@ -81,7 +81,7 @@ export function MonthlyReservationsCalendar({
   const isDraggingRef = useRef(false);
   const dragMovedRef = useRef(false);
   const canDeleteAnyReservation = actingUser.role === "superadmin";
-  const canBookForOthers = actingUser.role === "admin" || actingUser.role === "superadmin";
+  const canBookForOthers = users.length > 1;
 
   const monthStart = startOfMonth(monthCursor);
   const calendarStart = startOfWeek(monthStart);
@@ -585,6 +585,8 @@ export function MonthlyReservationsCalendar({
             const hasSharedStay = reservationsOnDay.length > 1;
             const isBookedCell = Boolean(primaryReservation);
             const isOwnReservation = primaryReservation?.userId === actingUser.id;
+            const canOverlapThisReservation =
+              !isOwnReservation && Boolean(primaryReservation?.sharedWithUserIds?.includes(actingUser.id));
             const sharedStayGuests = reservationsOnDay.slice(0, 2);
             const extraSharedStayCount = Math.max(reservationsOnDay.length - sharedStayGuests.length, 0);
 
@@ -593,6 +595,8 @@ export function MonthlyReservationsCalendar({
                 ? "border-[#6bbfc7] bg-[linear-gradient(135deg,#e6fbf6_0%,#b8ecdf_38%,#9fd8eb_100%)] text-[#103b44] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
                 : primaryReservation?.status === "declined"
                 ? "bg-rose-300 text-rose-900 border-rose-400"
+                : canOverlapThisReservation
+                  ? "border-[#7fb6c9] bg-[linear-gradient(135deg,#9fd9e2_0%,#9fd9e2_49%,#ffffff_50%,#ffffff_100%)] text-slate-900 dark:border-[#27566a] dark:bg-[linear-gradient(135deg,#1f4d60_0%,#1f4d60_49%,#0f172a_50%,#0f172a_100%)] dark:text-slate-100"
                 : !isOwnReservation
                   ? "bg-slate-300 text-slate-900 border-slate-400"
                   : primaryReservation?.status === "pending"

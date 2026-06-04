@@ -46,10 +46,17 @@ export async function createReservation(params: {
     .eq("id", user.id)
     .maybeSingle();
 
-  const canBookForOthers = actingProfile?.role === "admin" || actingProfile?.role === "superadmin";
+  const isBookingForAnotherUser = bookedForUserId !== user.id;
+  if (isBookingForAnotherUser) {
+    const { data: bookingTarget } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("id", bookedForUserId)
+      .maybeSingle();
 
-  if (bookedForUserId !== user.id && !canBookForOthers) {
-    return { error: "You can only create reservations for your own account." };
+    if (!bookingTarget) {
+      return { error: "Selected booking user was not found." };
+    }
   }
 
   if (!startDate || !endDate) {

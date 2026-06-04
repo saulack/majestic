@@ -99,6 +99,8 @@ export type MaintenanceSummary = {
   nextMaintenanceDueDate: string;
   daysSinceLastMaintenance: number | null;
   needsAttention: boolean;
+  snapshotState?: "counting" | "booked" | "in_progress_today";
+  bookedForDate?: string;
 };
 
 export type MaintenanceThresholdApprovalStatus = "pending" | "approved" | "rejected";

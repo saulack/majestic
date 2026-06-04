@@ -9,9 +9,10 @@ import { redirect } from "next/navigation";
 import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
 import { isSuperadmin } from "@/lib/rbac";
 import {
+  getAllFeatureRequests,
   getAuthenticatedUserProfile,
   getMaintenanceTypes,
-  getPendingFeatureRequests,
+  getFeatureRequestVoteCounts,
   getPendingMaintenanceThresholdApprovals
 } from "@/lib/live-data";
 
@@ -35,12 +36,20 @@ export default async function AdminPage() {
   const approvalsEnabled = await getReservationApprovalsEnabled();
   const homepageReservationCount = await getNumberAppSetting(HOMEPAGE_RESERVATIONS_COUNT_KEY, DEFAULT_HOME_RESERVATION_COUNT);
   const admin = createAdminClient();
-  const [maintenanceTypes, pendingThresholdApprovals, pendingFeatureRequests, pendingBugReports] = await Promise.all([
+  const [maintenanceTypes, pendingThresholdApprovals, allFeatureRequests, featureRequestVoteCounts] = await Promise.all([
     getMaintenanceTypes(),
     getPendingMaintenanceThresholdApprovals(),
-    getPendingFeatureRequests("feature"),
-    getPendingFeatureRequests("bug")
+    getAllFeatureRequests(),
+    getFeatureRequestVoteCounts()
   ]);
+  const pendingFeatureRequests = allFeatureRequests
+    .filter((request) => request.status === "pending" && request.requestType === "feature")
+    .map((request) => ({ ...request, voteCount: featureRequestVoteCounts[request.id] ?? 0 }))
+    .sort((left, right) => (right.voteCount ?? 0) - (left.voteCount ?? 0) || right.createdAt.localeCompare(left.createdAt));
+  const pendingBugReports = allFeatureRequests
+    .filter((request) => request.status === "pending" && request.requestType === "bug")
+    .map((request) => ({ ...request, voteCount: featureRequestVoteCounts[request.id] ?? 0 }))
+    .sort((left, right) => (right.voteCount ?? 0) - (left.voteCount ?? 0) || right.createdAt.localeCompare(left.createdAt));
   let users: UserProfile[] = [];
 
   if (admin) {

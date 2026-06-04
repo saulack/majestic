@@ -46,12 +46,30 @@ export function HomeMaintenanceStatus({ summaries }: Props) {
     }, 180);
   }
 
+  function getDetailText(summary: MaintenanceSummary) {
+    if (summary.snapshotState === "booked" && summary.bookedForDate) {
+      return `Booked for ${summary.bookedForDate}. Day count restarts the day after this date.`;
+    }
+
+    if (summary.snapshotState === "in_progress_today") {
+      return "Maintenance is in progress today. Day count will restart tomorrow at 1.";
+    }
+
+    return `${summary.daysSinceLastMaintenance} days since last cycle baseline`;
+  }
+
   return (
     <>
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {summaries.map((summary) => {
           const isOverdue =
-            summary.daysSinceLastMaintenance !== null && summary.daysSinceLastMaintenance >= summary.thresholdDays;
+            summary.snapshotState === "counting" && summary.daysSinceLastMaintenance !== null && summary.daysSinceLastMaintenance >= summary.thresholdDays;
+          const detailLine =
+            summary.snapshotState === "booked" && summary.bookedForDate
+              ? `booked: ${summary.bookedForDate}`
+              : summary.snapshotState === "in_progress_today"
+                ? "status: in progress today"
+                : `days: ${summary.daysSinceLastMaintenance}`;
 
           return (
             <article
@@ -63,9 +81,10 @@ export function HomeMaintenanceStatus({ summaries }: Props) {
                 onClick={() => openModal(summary)}
                 className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left"
               >
-                <p className="text-sm font-medium text-slate-900">
-                  {summary.typeName} {summary.daysSinceLastMaintenance} days
-                </p>
+                <div>
+                  <p className="text-sm font-medium text-slate-900">{summary.typeName}</p>
+                  <p className="text-xs font-normal text-slate-500">{detailLine}</p>
+                </div>
                 <div className="flex items-center gap-2">
                   {isOverdue ? (
                     <span className="rounded-full border border-rose-300 bg-rose-50 px-2.5 py-0.5 text-[11px] font-semibold text-rose-700">
@@ -98,7 +117,7 @@ export function HomeMaintenanceStatus({ summaries }: Props) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h4 className="text-xl font-semibold text-slate-900">{activeSummary.typeName}</h4>
-                <p className="mt-1 text-sm text-slate-600">{activeSummary.daysSinceLastMaintenance} days since last cycle baseline</p>
+                <p className="mt-1 text-sm text-slate-600">{getDetailText(activeSummary)}</p>
               </div>
               <button
                 type="button"

@@ -15,6 +15,8 @@ type VoteApiResult = ApiResult & {
   requestId?: string;
 };
 
+type RequestSort = "score" | "date";
+
 export function FeatureRequestsClient({ requests, actingUserId }: { requests: FeatureRequest[]; actingUserId: string }) {
   const router = useRouter();
   const [items, setItems] = useState(requests);
@@ -25,6 +27,8 @@ export function FeatureRequestsClient({ requests, actingUserId }: { requests: Fe
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [resolvedVisibleCount, setResolvedVisibleCount] = useState(10);
+  const [unresolvedSort, setUnresolvedSort] = useState<RequestSort>("score");
+  const [resolvedSort, setResolvedSort] = useState<RequestSort>("date");
   const [voteBusyById, setVoteBusyById] = useState<Record<string, boolean>>({});
   const [voteStatus, setVoteStatus] = useState("");
 
@@ -40,6 +44,10 @@ export function FeatureRequestsClient({ requests, actingUserId }: { requests: Fe
     return [...items]
       .filter((request) => request.status === "pending" || request.status === "in_progress")
       .sort((left, right) => {
+        if (unresolvedSort === "date") {
+          return parseISO(right.createdAt).getTime() - parseISO(left.createdAt).getTime();
+        }
+
         const voteDiff = (right.voteCount ?? 0) - (left.voteCount ?? 0);
         if (voteDiff !== 0) {
           return voteDiff;
@@ -47,13 +55,24 @@ export function FeatureRequestsClient({ requests, actingUserId }: { requests: Fe
 
         return parseISO(right.createdAt).getTime() - parseISO(left.createdAt).getTime();
       });
-  }, [items]);
+  }, [items, unresolvedSort]);
 
   const resolvedRequests = useMemo(() => {
     return [...items]
       .filter((request) => request.status === "completed" || request.status === "declined" || request.status === "rejected")
-      .sort((left, right) => parseISO(right.updatedAt).getTime() - parseISO(left.updatedAt).getTime());
-  }, [items]);
+      .sort((left, right) => {
+        if (resolvedSort === "score") {
+          const voteDiff = (right.voteCount ?? 0) - (left.voteCount ?? 0);
+          if (voteDiff !== 0) {
+            return voteDiff;
+          }
+
+          return parseISO(right.updatedAt).getTime() - parseISO(left.updatedAt).getTime();
+        }
+
+        return parseISO(right.updatedAt).getTime() - parseISO(left.updatedAt).getTime();
+      });
+  }, [items, resolvedSort]);
 
   const visibleResolvedRequests = resolvedRequests.slice(0, resolvedVisibleCount);
   const canLoadMoreResolved = resolvedVisibleCount < resolvedRequests.length;
@@ -260,6 +279,28 @@ export function FeatureRequestsClient({ requests, actingUserId }: { requests: Fe
             <h3 className="text-lg sm:text-xl">Unresolved Requests</h3>
             <p className="mt-1 text-sm text-slate-500">All open feature requests and bug reports across every user, sorted by support.</p>
           </div>
+          <div className="inline-flex rounded-lg border border-slate-300 bg-white p-1">
+            <button
+              type="button"
+              onClick={() => setUnresolvedSort("score")}
+              className={[
+                "rounded-md px-3 py-1.5 text-sm",
+                unresolvedSort === "score" ? "bg-amber-700 text-white" : "text-slate-700"
+              ].join(" ")}
+            >
+              Score
+            </button>
+            <button
+              type="button"
+              onClick={() => setUnresolvedSort("date")}
+              className={[
+                "rounded-md px-3 py-1.5 text-sm",
+                unresolvedSort === "date" ? "bg-amber-700 text-white" : "text-slate-700"
+              ].join(" ")}
+            >
+              Date
+            </button>
+          </div>
         </div>
 
         {voteStatus ? <p className="mt-3 text-sm text-slate-600">{voteStatus}</p> : null}
@@ -317,6 +358,28 @@ export function FeatureRequestsClient({ requests, actingUserId }: { requests: Fe
           <div>
             <h3 className="text-lg sm:text-xl">Resolved Requests</h3>
             <p className="mt-1 text-sm text-slate-500">Completed, declined, and rejected requests. Showing 10 at a time.</p>
+          </div>
+          <div className="inline-flex rounded-lg border border-slate-300 bg-white p-1">
+            <button
+              type="button"
+              onClick={() => setResolvedSort("date")}
+              className={[
+                "rounded-md px-3 py-1.5 text-sm",
+                resolvedSort === "date" ? "bg-amber-700 text-white" : "text-slate-700"
+              ].join(" ")}
+            >
+              Date
+            </button>
+            <button
+              type="button"
+              onClick={() => setResolvedSort("score")}
+              className={[
+                "rounded-md px-3 py-1.5 text-sm",
+                resolvedSort === "score" ? "bg-amber-700 text-white" : "text-slate-700"
+              ].join(" ")}
+            >
+              Score
+            </button>
           </div>
         </div>
 

@@ -7,6 +7,10 @@ type MaintenanceRecordInput = {
   scheduledFor?: string;
 };
 
+type MaintenanceRecordDeleteInput = {
+  recordId?: string;
+};
+
 export async function POST(request: Request) {
   const auth = await requireAuthenticated();
   if (!auth.ok) {
@@ -63,4 +67,50 @@ export async function POST(request: Request) {
     },
     { status: 201 }
   );
+}
+
+export async function DELETE(request: Request) {
+  const auth = await requireAuthenticated();
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.message }, { status: 403 });
+  }
+
+  const admin = createAdminClient();
+  if (!admin) {
+    return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
+  }
+
+  const body = (await request.json()) as MaintenanceRecordDeleteInput;
+  const recordId = body.recordId?.trim() ?? "";
+
+  if (!recordId) {
+    return NextResponse.json({ error: "Record id is required." }, { status: 400 });
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: existingRecord, error: existingError } = await admin
+    .from("maintenance_records")
+    .select("id,created_by,scheduled_for")
+    .eq("id", recordId)
+    .maybeSingle();
+
+  if (existingError || !existingRecord) {
+    return NextResponse.json({ error: "Maintenance booking not found." }, { status: 404 });
+  }
+
+  if (existingRecord.created_by !== auth.userId) {
+    return NextResponse.json({ error: "You can only cancel your own maintenance bookings." }, { status: 403 });
+  }
+
+  if (existingRecord.scheduled_for < today) {
+    return NextResponse.json({ error: "Past maintenance bookings cannot be canceled." }, { status: 400 });
+  }
+
+  const { error: deleteError } = await admin.from("maintenance_records").delete().eq("id", recordId).eq("created_by", auth.userId);
+
+  if (deleteError) {
+    return NextResponse.json({ error: deleteError.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ mode: "live", message: "Maintenance booking canceled.", recordId });
 }

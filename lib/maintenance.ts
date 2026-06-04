@@ -16,13 +16,53 @@ export function buildMaintenanceSummaries(
   const normalizedReferenceDate = startOfDay(referenceDate);
 
   return maintenanceTypes.map((maintenanceType) => {
-    const lastRecord = maintenanceRecords
-      .filter((record) => record.typeId === maintenanceType.id && parseISO(record.scheduledFor) <= normalizedReferenceDate)
+    const recordsForType = maintenanceRecords.filter((record) => record.typeId === maintenanceType.id);
+    const lastRecord = recordsForType
+      .filter((record) => parseISO(record.scheduledFor) <= normalizedReferenceDate)
       .sort((left, right) => (left.scheduledFor < right.scheduledFor ? 1 : -1))[0];
+    const todayRecord = recordsForType.find(
+      (record) => differenceInCalendarDays(startOfDay(parseISO(record.scheduledFor)), normalizedReferenceDate) === 0
+    );
+    const upcomingRecord = recordsForType
+      .filter((record) => parseISO(record.scheduledFor) > normalizedReferenceDate)
+      .sort((left, right) => (left.scheduledFor > right.scheduledFor ? 1 : -1))[0];
 
     const baselineDate = lastRecord ? parseISO(lastRecord.scheduledFor) : parseISO(maintenanceType.createdAt);
     const daysSinceLastMaintenance = Math.max(0, differenceInCalendarDays(normalizedReferenceDate, startOfDay(baselineDate)));
     const hasLoggedMaintenance = Boolean(lastRecord);
+
+    if (todayRecord) {
+      const todayBaseline = startOfDay(parseISO(todayRecord.scheduledFor));
+      return {
+        typeId: maintenanceType.id,
+        typeName: maintenanceType.name,
+        thresholdDays: maintenanceType.thresholdDays,
+        hasLoggedMaintenance: true,
+        lastMaintenanceDate: todayRecord.scheduledFor,
+        lastBookedByName: todayRecord.createdByName,
+        nextMaintenanceDueDate: format(addDays(todayBaseline, maintenanceType.thresholdDays), "yyyy-MM-dd"),
+        daysSinceLastMaintenance: 0,
+        needsAttention: false,
+        snapshotState: "in_progress_today"
+      };
+    }
+
+    if (upcomingRecord) {
+      return {
+        typeId: maintenanceType.id,
+        typeName: maintenanceType.name,
+        thresholdDays: maintenanceType.thresholdDays,
+        hasLoggedMaintenance,
+        lastMaintenanceDate: lastRecord?.scheduledFor,
+        lastBookedByName: upcomingRecord.createdByName,
+        nextMaintenanceDueDate: upcomingRecord.scheduledFor,
+        daysSinceLastMaintenance: 0,
+        needsAttention: false,
+        snapshotState: "booked",
+        bookedForDate: upcomingRecord.scheduledFor
+      };
+    }
+
     const nextMaintenanceDueDate = format(addDays(startOfDay(baselineDate), maintenanceType.thresholdDays), "yyyy-MM-dd");
 
     return {
@@ -34,7 +74,8 @@ export function buildMaintenanceSummaries(
       lastBookedByName: lastRecord?.createdByName,
       nextMaintenanceDueDate,
       daysSinceLastMaintenance,
-      needsAttention: daysSinceLastMaintenance >= maintenanceType.thresholdDays
+      needsAttention: daysSinceLastMaintenance >= maintenanceType.thresholdDays,
+      snapshotState: "counting"
     };
   });
 }

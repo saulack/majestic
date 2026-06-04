@@ -135,18 +135,38 @@ export async function DELETE(request: Request) {
   }
 
   if (existingReservation.user_id !== auth.userId) {
-    return NextResponse.json({ error: "You can only delete your own reservations." }, { status: 403 });
+    return NextResponse.json({ error: "You can only cancel your own reservations." }, { status: 403 });
   }
 
-  const { error } = await admin
+  const { data, error } = await admin
     .from("reservations")
-    .delete()
+    .update({
+      status: "declined",
+      decline_reason: "Canceled by user",
+      reviewed_by: auth.userId,
+      reviewed_at: new Date().toISOString()
+    })
     .eq("id", reservationId)
-    .eq("user_id", auth.userId);
+    .eq("user_id", auth.userId)
+    .select("id,user_id,start_date,end_date,notes,status,decline_reason,created_at")
+    .single();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error || !data) {
+    return NextResponse.json({ error: error?.message ?? "Failed to cancel reservation." }, { status: 400 });
   }
 
-  return NextResponse.json({ mode: "live", message: "Reservation deleted.", reservationId });
+  return NextResponse.json({
+    mode: "live",
+    message: "Reservation canceled.",
+    reservation: {
+      id: data.id,
+      userId: data.user_id,
+      startDate: data.start_date,
+      endDate: data.end_date,
+      notes: data.notes ?? undefined,
+      status: data.status,
+      declineReason: data.decline_reason ?? undefined,
+      createdAt: data.created_at
+    }
+  });
 }

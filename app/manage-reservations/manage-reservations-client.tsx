@@ -31,6 +31,14 @@ export function ManageReservationsClient({ initialReservations }: { initialReser
 
   const sorted = [...reservations].sort((a, b) => b.startDate.localeCompare(a.startDate));
 
+  function getStatusLabel(reservation: ReservationRow) {
+    if (reservation.status === "declined" && reservation.declineReason === "Canceled by user") {
+      return "Canceled";
+    }
+
+    return formatStatusLabel(reservation.status);
+  }
+
   function startEditing(reservation: ReservationRow) {
     setEditingId(reservation.id);
     setStatus("");
@@ -93,8 +101,8 @@ export function ManageReservationsClient({ initialReservations }: { initialReser
     setStatus(payload.message ?? "Reservation updated.");
   }
 
-  async function deleteReservation(reservationId: string) {
-    const confirmed = window.confirm("Delete this reservation?");
+  async function cancelReservation(reservationId: string) {
+    const confirmed = window.confirm("Cancel this reservation?");
     if (!confirmed) {
       return;
     }
@@ -112,18 +120,31 @@ export function ManageReservationsClient({ initialReservations }: { initialReser
     setBusy(false);
 
     if (!response.ok) {
-      setStatus(payload.error ?? "Unable to delete reservation.");
+      setStatus(payload.error ?? "Unable to cancel reservation.");
       return;
     }
 
-    setReservations((current) => current.filter((reservation) => reservation.id !== reservationId));
-    setStatus(payload.message ?? "Reservation deleted.");
+    if (payload.reservation) {
+      setReservations((current) =>
+        current.map((reservation) =>
+          reservation.id === reservationId
+            ? {
+                ...reservation,
+                status: payload.reservation?.status ?? reservation.status,
+                declineReason: payload.reservation?.declineReason ?? reservation.declineReason
+              }
+            : reservation
+        )
+      );
+    }
+
+    setStatus(payload.message ?? "Reservation canceled.");
   }
 
   return (
     <section className="card p-5 sm:p-6">
       <h2 className="text-xl sm:text-2xl">Manage Reservations</h2>
-      <p className="mt-2 text-sm text-slate-600">Review your reservations and edit or delete them from this page.</p>
+      <p className="mt-2 text-sm text-slate-600">Review your reservations and edit or cancel them from this page.</p>
 
       {status ? <p className="mt-3 text-sm text-slate-700">{status}</p> : null}
 
@@ -142,7 +163,7 @@ export function ManageReservationsClient({ initialReservations }: { initialReser
                   </p>
                   <p className="mt-1 text-xs text-slate-500">Created {format(parseISO(reservation.createdAt), "MMM d, yyyy")}</p>
                 </div>
-                <span className={statusBadgeClass(reservation.status)}>{formatStatusLabel(reservation.status)}</span>
+                <span className={statusBadgeClass(reservation.status)}>{getStatusLabel(reservation)}</span>
               </div>
 
               {editingId === reservation.id ? (
@@ -202,27 +223,37 @@ export function ManageReservationsClient({ initialReservations }: { initialReser
               ) : (
                 <>
                   {reservation.notes ? <p className="mt-3 text-sm text-slate-600">{reservation.notes}</p> : null}
-                  {reservation.declineReason ? <p className="mt-2 text-sm text-rose-700">Decline reason: {reservation.declineReason}</p> : null}
+                    {reservation.declineReason ? (
+                      <p className={`mt-2 text-sm ${reservation.declineReason === "Canceled by user" ? "text-amber-700" : "text-rose-700"}`}>
+                        {reservation.declineReason === "Canceled by user" ? "Cancellation note: Canceled by you" : `Decline reason: ${reservation.declineReason}`}
+                      </p>
+                    ) : null}
 
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => startEditing(reservation)}
-                      className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 disabled:opacity-60"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        void deleteReservation(reservation.id);
-                      }}
-                      className="rounded-lg border border-rose-300 px-4 py-2 text-rose-700 disabled:opacity-60"
-                    >
-                      Delete
-                    </button>
+                    {reservation.status !== "declined" ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => startEditing(reservation)}
+                          className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 disabled:opacity-60"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            void cancelReservation(reservation.id);
+                          }}
+                          className="rounded-lg border border-rose-300 px-4 py-2 text-rose-700 disabled:opacity-60"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <span className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800">Canceled</span>
+                    )}
                   </div>
                 </>
               )}
@@ -244,6 +275,7 @@ function formatStatusLabel(status: Reservation["status"]): string {
       return "Pending";
   }
 }
+
 
 function statusBadgeClass(status: Reservation["status"]): string {
   if (status === "approved") {

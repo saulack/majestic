@@ -43,6 +43,7 @@ export default async function HomePage() {
     .filter((reservation) => compareAsc(parseISO(reservation.startDate), new Date()) >= 0)
     .sort((left, right) => compareAsc(parseISO(left.startDate), parseISO(right.startDate)));
   const myReservations = normalizedReservations.filter((reservation) => reservation.userId === actingUser.id);
+  const upcomingMyReservations = myReservations.filter((reservation) => compareAsc(parseISO(reservation.startDate), new Date()) >= 0);
   const myNextStay = myReservations
     .filter((reservation) => compareAsc(parseISO(reservation.startDate), new Date()) >= 0)
     .sort((left, right) => compareAsc(parseISO(left.startDate), parseISO(right.startDate)))[0];
@@ -68,7 +69,7 @@ export default async function HomePage() {
           <div className="grid gap-3 p-5 sm:grid-cols-3 sm:gap-4 sm:p-6">
             <Metric label={adminLike ? "Visible reservations" : "My reservations"} value={String(adminLike ? reservations.length : myReservations.length)} />
             <Metric label={adminLike ? requestMetricLabel : "Your next stay"} value={adminLike ? String(requestMetricValue) : myNextStay?.startDate ?? "-"} />
-            <Metric label={adminLike ? "Current role" : "Notification channels"} value={adminLike ? currentRoleMetricValue : "Email, SMS, WhatsApp"} />
+            <Metric label={adminLike ? "Current role" : "Upcoming reservations"} value={adminLike ? currentRoleMetricValue : String(upcomingMyReservations.length)} />
           </div>
         </div>
 
@@ -76,7 +77,7 @@ export default async function HomePage() {
           <h3 className="text-lg sm:text-xl">Quick Actions</h3>
           <div className="mt-4 grid gap-3">
             <Action href="/reservations" title="Create reservation" subtitle="Plan your next family stay" />
-            <Action href="/manage-reservations" title="Manage reservations" subtitle="Edit or delete your reservations" />
+            <Action href="/manage-reservations" title="Manage reservations" subtitle="Edit or cancel your reservations" />
             <Action href="/stats" title="View personal stats" subtitle="Track your own stays and nights" />
           </div>
         </div>

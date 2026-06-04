@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ToggleSwitch } from "@/components/toggle-switch";
 import { clearRolePreviewInBrowser, setRolePreviewInBrowser } from "@/lib/role-preview";
 import type { FeatureRequest, MaintenanceThresholdApproval, MaintenanceType, UserProfile } from "@/lib/types";
+
+type RequestSort = "score" | "date";
 
 type ApiResult = {
   message?: string;
@@ -44,8 +46,10 @@ export function AdminConsole({
   const [thresholdApprovalsOpen, setThresholdApprovalsOpen] = useState(false);
   const [pendingFeatureRequests, setPendingFeatureRequests] = useState(initialPendingFeatureRequests);
   const [pendingFeatureRequestsOpen, setPendingFeatureRequestsOpen] = useState(false);
+  const [pendingFeatureRequestsSort, setPendingFeatureRequestsSort] = useState<RequestSort>("score");
   const [pendingBugReports, setPendingBugReports] = useState(initialPendingBugReports);
   const [pendingBugReportsOpen, setPendingBugReportsOpen] = useState(false);
+  const [pendingBugReportsSort, setPendingBugReportsSort] = useState<RequestSort>("score");
   const [users, setUsers] = useState(initialUsers);
   const [manualInviteStatus, setManualInviteStatus] = useState("");
   const [manualInviteLink, setManualInviteLink] = useState("");
@@ -73,6 +77,9 @@ export function AdminConsole({
       setLoading(false);
     }
   }
+
+  const sortedPendingFeatureRequests = useMemo(() => sortFeatureRequests(pendingFeatureRequests, pendingFeatureRequestsSort), [pendingFeatureRequests, pendingFeatureRequestsSort]);
+  const sortedPendingBugReports = useMemo(() => sortFeatureRequests(pendingBugReports, pendingBugReportsSort), [pendingBugReports, pendingBugReportsSort]);
 
   return (
     <section className="grid gap-5 sm:gap-6 lg:grid-cols-2">
@@ -174,17 +181,43 @@ export function AdminConsole({
 
         {pendingFeatureRequestsOpen ? (
           <div className="mt-4 grid gap-3">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+              <span className="font-medium text-slate-700">Sort by</span>
+              <div className="inline-flex rounded-lg border border-slate-300 bg-slate-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setPendingFeatureRequestsSort("score")}
+                  className={[
+                    "rounded-md px-3 py-1.5 text-sm",
+                    pendingFeatureRequestsSort === "score" ? "bg-amber-700 text-white" : "text-slate-700"
+                  ].join(" ")}
+                >
+                  Score
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingFeatureRequestsSort("date")}
+                  className={[
+                    "rounded-md px-3 py-1.5 text-sm",
+                    pendingFeatureRequestsSort === "date" ? "bg-amber-700 text-white" : "text-slate-700"
+                  ].join(" ")}
+                >
+                  Date
+                </button>
+              </div>
+            </div>
             {pendingFeatureRequests.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
                 There are currently no pending feature requests.
               </div>
             ) : (
-              pendingFeatureRequests.map((request) => (
+              sortedPendingFeatureRequests.map((request) => (
                 <div key={request.id} className="rounded-xl border border-slate-200 bg-white p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-slate-900">{request.title}</p>
                       <p className="mt-1 text-sm text-slate-600">Requested by {request.requestedByName}</p>
+                      <p className="mt-1 text-xs font-medium text-amber-700">{request.voteCount ?? 0} boost{(request.voteCount ?? 0) === 1 ? "" : "s"}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <button
@@ -259,17 +292,43 @@ export function AdminConsole({
 
         {pendingBugReportsOpen ? (
           <div className="mt-4 grid gap-3">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+              <span className="font-medium text-slate-700">Sort by</span>
+              <div className="inline-flex rounded-lg border border-slate-300 bg-slate-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setPendingBugReportsSort("score")}
+                  className={[
+                    "rounded-md px-3 py-1.5 text-sm",
+                    pendingBugReportsSort === "score" ? "bg-amber-700 text-white" : "text-slate-700"
+                  ].join(" ")}
+                >
+                  Score
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingBugReportsSort("date")}
+                  className={[
+                    "rounded-md px-3 py-1.5 text-sm",
+                    pendingBugReportsSort === "date" ? "bg-amber-700 text-white" : "text-slate-700"
+                  ].join(" ")}
+                >
+                  Date
+                </button>
+              </div>
+            </div>
             {pendingBugReports.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
                 There are currently no pending bug reports.
               </div>
             ) : (
-              pendingBugReports.map((request) => (
+              sortedPendingBugReports.map((request) => (
                 <div key={request.id} className="rounded-xl border border-slate-200 bg-white p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-slate-900">{request.title}</p>
                       <p className="mt-1 text-sm text-slate-600">Reported by {request.requestedByName}</p>
+                      <p className="mt-1 text-xs font-medium text-amber-700">{request.voteCount ?? 0} boost{(request.voteCount ?? 0) === 1 ? "" : "s"}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <button
@@ -700,4 +759,14 @@ export function AdminConsole({
       ) : null}
     </section>
   );
+}
+
+function sortFeatureRequests(requests: FeatureRequest[], sortBy: RequestSort) {
+  return [...requests].sort((left, right) => {
+    if (sortBy === "date") {
+      return right.createdAt.localeCompare(left.createdAt);
+    }
+
+    return (right.voteCount ?? 0) - (left.voteCount ?? 0) || right.createdAt.localeCompare(left.createdAt);
+  });
 }
