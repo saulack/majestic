@@ -1,4 +1,4 @@
-import { differenceInCalendarDays, parseISO, startOfDay } from "date-fns";
+import { addDays, differenceInCalendarDays, format, parseISO, startOfDay } from "date-fns";
 import type { MaintenanceNotification, MaintenanceRecord, MaintenanceSummary, MaintenanceType } from "@/lib/types";
 
 export type MaintenanceContactInfo = {
@@ -23,6 +23,7 @@ export function buildMaintenanceSummaries(
     const baselineDate = lastRecord ? parseISO(lastRecord.scheduledFor) : parseISO(maintenanceType.createdAt);
     const daysSinceLastMaintenance = Math.max(0, differenceInCalendarDays(normalizedReferenceDate, startOfDay(baselineDate)));
     const hasLoggedMaintenance = Boolean(lastRecord);
+    const nextMaintenanceDueDate = format(addDays(startOfDay(baselineDate), maintenanceType.thresholdDays), "yyyy-MM-dd");
 
     return {
       typeId: maintenanceType.id,
@@ -30,6 +31,8 @@ export function buildMaintenanceSummaries(
       thresholdDays: maintenanceType.thresholdDays,
       hasLoggedMaintenance,
       lastMaintenanceDate: lastRecord?.scheduledFor,
+      lastBookedByName: lastRecord?.createdByName,
+      nextMaintenanceDueDate,
       daysSinceLastMaintenance,
       needsAttention: daysSinceLastMaintenance >= maintenanceType.thresholdDays
     };

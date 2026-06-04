@@ -1,6 +1,5 @@
 "use client";
 
-import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
@@ -41,9 +40,6 @@ export function AccountClientPage({
 
     return window.localStorage.getItem("majestic-theme") === "dark";
   });
-  const emailEnabled = preferences?.channels.includes("email") ?? false;
-  const smsEnabled = preferences?.channels.includes("sms") ?? false;
-
   useEffect(() => {
     const root = document.documentElement;
 
@@ -163,46 +159,17 @@ export function AccountClientPage({
           <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
             <h3 className="text-lg font-semibold">Notification Preferences</h3>
             <div className="mt-4 grid gap-4 text-sm">
-              <div className="flex flex-wrap gap-3">
-                <button type="button" disabled className={["rounded-full px-4 py-2 text-sm disabled:cursor-not-allowed", emailEnabled ? "bg-amber-700 text-white" : "border border-slate-300 bg-white text-slate-700"].join(" ")}>
-                  Email
-                </button>
-                <button type="button" disabled className={["rounded-full px-4 py-2 text-sm disabled:cursor-not-allowed", smsEnabled ? "bg-amber-700 text-white" : "border border-slate-300 bg-white text-slate-700"].join(" ")}>
-                  SMS
-                </button>
-              </div>
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                Under construction. Email and SMS delivery options will connect once the services are set up.
-              </div>
-
-              <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <p className="text-sm font-medium text-slate-800">Theme preference</p>
-                <p className="mt-1 text-xs text-slate-500">Switch between light and dark mode. Your choice is saved on this device.</p>
-                <div className="mt-3">
-                  <ToggleSwitch
-                    checked={darkModeEnabled}
-                    onCheckedChange={setDarkModeEnabled}
-                    srLabel="Toggle dark mode"
-                    offLabel=""
-                    onLabel=""
-                  />
-                </div>
-                <div className="mt-2 flex items-center gap-4 text-xs text-slate-600">
-                  <span className="inline-flex items-center gap-1"><Sun className="h-3.5 w-3.5" /> Light</span>
-                  <span className="inline-flex items-center gap-1"><Moon className="h-3.5 w-3.5" /> Dark</span>
-                </div>
-              </div>
-
               <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
                 <div>
                   <p className="text-sm font-medium text-slate-800">Email me when I make a reservation</p>
                   <p className="mt-1 text-xs text-slate-500">Sends a reservation confirmation email after booking.</p>
                 </div>
-                <input
-                  type="checkbox"
+                <ToggleSwitch
                   checked={reservationConfirmationEmail}
-                  onChange={(event) => setReservationConfirmationEmail(event.target.checked)}
-                  className="h-4 w-4"
+                  onCheckedChange={setReservationConfirmationEmail}
+                  srLabel="Toggle self reservation confirmation email"
+                  offLabel="Off"
+                  onLabel="On"
                 />
               </label>
 
@@ -211,11 +178,12 @@ export function AccountClientPage({
                   <p className="text-sm font-medium text-slate-800">Email me when someone books for me</p>
                   <p className="mt-1 text-xs text-slate-500">Sends a confirmation email when another user creates a reservation on your behalf.</p>
                 </div>
-                <input
-                  type="checkbox"
+                <ToggleSwitch
                   checked={reservationBookedByOtherEmail}
-                  onChange={(event) => setReservationBookedByOtherEmail(event.target.checked)}
-                  className="h-4 w-4"
+                  onCheckedChange={setReservationBookedByOtherEmail}
+                  srLabel="Toggle delegated reservation confirmation email"
+                  offLabel="Off"
+                  onLabel="On"
                 />
               </label>
 
@@ -231,6 +199,25 @@ export function AccountClientPage({
                   {preferencesBusy ? "Saving..." : "Save notification preferences"}
                 </button>
                 {preferencesStatus ? <p className="mt-2 text-sm text-slate-700">{preferencesStatus}</p> : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
+            <h3 className="text-lg font-semibold">Appearance</h3>
+            <div className="mt-4 rounded-lg border border-slate-200 bg-white px-3 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Dark mode</p>
+                  <p className="mt-1 text-xs text-slate-500">Switch between light and dark mode. Your choice is saved on this device.</p>
+                </div>
+                <ToggleSwitch
+                  checked={darkModeEnabled}
+                  onCheckedChange={setDarkModeEnabled}
+                  srLabel="Toggle dark mode"
+                  offLabel="Light"
+                  onLabel="Dark"
+                />
               </div>
             </div>
           </div>

@@ -20,17 +20,17 @@ export function AppShell({
   return (
     <div className="min-h-screen text-slate-900">
       <header className="mx-auto flex w-full max-w-6xl flex-col items-start gap-4 px-4 py-5 sm:px-6 sm:py-6 md:flex-row md:items-center md:justify-between">
-        <div>
+        <Link href="/" className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2">
           <p className="text-[10px] uppercase tracking-[0.34em] text-[#4b9aa2] sm:text-[11px] sm:tracking-[0.38em]">Family Shared Apartment</p>
           <h1 className="font-[var(--font-display)] text-xl uppercase tracking-[0.16em] sm:text-2xl sm:tracking-[0.2em]">Majestic Family Hub</h1>
-        </div>
+        </Link>
         <nav className="no-scrollbar flex w-full snap-x gap-1 overflow-x-auto rounded-lg border border-[#bde3df] bg-[#f4fbfa]/96 p-1.5 shadow-[0_12px_28px_rgba(90,154,175,0.16)] backdrop-blur md:w-auto">
           <NavItem href="/" label="Home" icon={<Home className="h-4 w-4" />} />
           <NavItem href="/reservations" label="Reservations" icon={<CalendarDays className="h-4 w-4" />} />
-          {showRequestsInMainMenu ? <NavItem href="/feature-requests" label="Requests" icon={<Lightbulb className="h-4 w-4" />} /> : null}
-          <NavItem href="/stats" label="Stats" icon={<ChartColumnBig className="h-4 w-4" />} />
           <NavItem href="/maintenance" label="Maintenance" icon={<Wrench className="h-4 w-4" />} />
           <NavItem href="/info" label="Info" icon={<Info className="h-4 w-4" />} />
+          <NavItem href="/stats" label="Stats" icon={<ChartColumnBig className="h-4 w-4" />} />
+          {showRequestsInMainMenu ? <NavItem href="/feature-requests" label="Requests" icon={<Lightbulb className="h-4 w-4" />} /> : null}
           <NavItem href="/account" label="Account" icon={<UserRound className="h-4 w-4" />} />
         </nav>
       </header>

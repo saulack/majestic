@@ -52,6 +52,32 @@ export function StatsClientPage({
   const featureRequests = filteredRequests.filter((request) => request.requestType === "feature");
   const bugReports = filteredRequests.filter((request) => request.requestType === "bug");
   const totalVolume = filteredReservations.length + filteredRequests.length;
+  const metricRows = useMemo(
+    () => [
+      { key: "total", label: "Total volume", value: totalVolume, barClass: "bg-slate-600" },
+      { key: "reservations", label: adminLike ? "Visible reservations" : "Reservations", value: filteredReservations.length, barClass: "bg-slate-700" },
+      { key: "features", label: "Feature requests", value: featureRequests.length, barClass: "bg-cyan-600" },
+      { key: "bugs", label: "Bug reports", value: bugReports.length, barClass: "bg-rose-600" },
+      {
+        key: "pending_or_days",
+        label: adminLike ? "Pending reservations" : "Days reserved",
+        value: adminLike ? pendingReservations.length : reservedDays,
+        barClass: "bg-emerald-600"
+      },
+      { key: "canceled", label: "Canceled reservations", value: canceledReservations.length, barClass: "bg-amber-600" }
+    ],
+    [
+      adminLike,
+      bugReports.length,
+      canceledReservations.length,
+      featureRequests.length,
+      filteredReservations.length,
+      pendingReservations.length,
+      reservedDays,
+      totalVolume
+    ]
+  );
+  const maxMetricValue = useMemo(() => Math.max(...metricRows.map((entry) => entry.value), 1), [metricRows]);
 
   const perUserRows = useMemo(() => {
     if (!adminLike) {
@@ -149,6 +175,27 @@ export function StatsClientPage({
           <StatTile label="Canceled reservations" value={canceledReservations.length} accent="rose" />
         </div>
 
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+          <h3 className="text-base font-semibold">Visual metric breakdown</h3>
+          <p className="mt-1 text-sm text-slate-500">Each bar shows the relative volume for that metric in the selected scope.</p>
+          <div className="mt-4 grid gap-3">
+            {metricRows.map((metric) => (
+              <div key={metric.key} className="grid gap-1.5">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="font-medium text-slate-700">{metric.label}</span>
+                  <span className="text-slate-600">{metric.value}</span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-100">
+                  <div
+                    className={`h-2 rounded-full ${metric.barClass}`}
+                    style={{ width: `${Math.max(6, (metric.value / maxMetricValue) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {adminLike ? (
           <div className="mt-6">
             <h3 className="mb-3 text-base font-semibold">
@@ -166,6 +213,7 @@ export function StatsClientPage({
                       <th className="px-3 py-2.5">Reservations</th>
                       <th className="px-3 py-2.5">Feature requests</th>
                       <th className="px-3 py-2.5">Bug reports</th>
+                      <th className="px-3 py-2.5">Visual</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -176,6 +224,29 @@ export function StatsClientPage({
                         <td className="px-3 py-2.5 text-slate-700">{row.reservations}</td>
                         <td className="px-3 py-2.5 text-slate-700">{row.featureRequests}</td>
                         <td className="px-3 py-2.5 text-slate-700">{row.bugReports}</td>
+                        <td className="px-3 py-2.5">
+                          <div className="h-2 w-40 overflow-hidden rounded-full bg-slate-100">
+                            {row.totalVolume > 0 ? (
+                              <div className="flex h-2 w-full">
+                                <div
+                                  className="bg-slate-600"
+                                  style={{ width: `${(row.reservations / row.totalVolume) * 100}%` }}
+                                  title={`Reservations: ${row.reservations}`}
+                                />
+                                <div
+                                  className="bg-cyan-600"
+                                  style={{ width: `${(row.featureRequests / row.totalVolume) * 100}%` }}
+                                  title={`Feature requests: ${row.featureRequests}`}
+                                />
+                                <div
+                                  className="bg-rose-600"
+                                  style={{ width: `${(row.bugReports / row.totalVolume) * 100}%` }}
+                                  title={`Bug reports: ${row.bugReports}`}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -230,14 +301,14 @@ function StatTile({
 }) {
   const ring = {
     slate: "border-slate-200 bg-white",
-    copper: "border-[#6ab7c2]/40 bg-[#e4f7fa]",
-    rose: "border-rose-400/40 bg-rose-50/30"
+    copper: "border-amber-200 bg-amber-50",
+    rose: "border-slate-200 bg-slate-50"
   }[accent];
 
   const text = {
     slate: "text-slate-800",
-    copper: "text-[#2f8b97]",
-    rose: "text-rose-700"
+    copper: "text-amber-700",
+    rose: "text-slate-700"
   }[accent];
 
   return (
@@ -250,12 +321,12 @@ function StatTile({
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "approved") {
-    return <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800">Approved</span>;
+    return <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700">Approved</span>;
   }
 
   if (status === "declined") {
-    return <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs text-rose-800">Canceled</span>;
+    return <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700">Canceled</span>;
   }
 
-  return <span className="rounded-full bg-[#d9f1f5] px-2 py-0.5 text-xs text-[#317f8c]">Pending</span>;
+  return <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700">Pending</span>;
 }

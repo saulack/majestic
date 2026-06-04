@@ -101,7 +101,7 @@ export function EmergencyContactsManager({ initialContacts = defaultEmergencyCon
       <div className="mt-5 grid gap-3">
         {sortedContacts.length > 0 ? (
           sortedContacts.map((contact) => (
-            <article key={contact.id} className="rounded-xl border border-slate-200 bg-[#f2fbf8] p-4">
+            <article key={contact.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h4 className="text-base font-semibold text-slate-900">{contact.title}</h4>

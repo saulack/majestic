@@ -93,6 +93,8 @@ export type MaintenanceSummary = {
   thresholdDays: number;
   hasLoggedMaintenance: boolean;
   lastMaintenanceDate?: string;
+  lastBookedByName?: string;
+  nextMaintenanceDueDate: string;
   daysSinceLastMaintenance: number | null;
   needsAttention: boolean;
 };

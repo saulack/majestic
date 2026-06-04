@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { KeyRound, Plus, X } from "lucide-react";
-import { readLocalAuthSnapshot } from "@/lib/local-auth";
 
 export type AccessCode = {
   id: string;
@@ -18,9 +17,6 @@ export function AccessCodesManager({ initialAccessCodes = defaultAccessCodes }: 
   const [accessCodes, setAccessCodes] = useState<AccessCode[]>(initialAccessCodes);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [verifyOpenForId, setVerifyOpenForId] = useState<string | null>(null);
-  const [verifyPassword, setVerifyPassword] = useState("");
-  const [verifyError, setVerifyError] = useState("");
   const [revealedIds, setRevealedIds] = useState<string[]>([]);
   const [formError, setFormError] = useState("");
   const [message, setMessage] = useState("");
@@ -84,26 +80,8 @@ export function AccessCodesManager({ initialAccessCodes = defaultAccessCodes }: 
     resetForm();
   }
 
-  function openVerifyModal(accessCodeId: string) {
-    setVerifyOpenForId(accessCodeId);
-    setVerifyPassword("");
-    setVerifyError("");
-  }
-
-  function handleVerifyPassword() {
-    const snapshot = readLocalAuthSnapshot();
-    if (verifyPassword !== snapshot.password) {
-      setVerifyError("Password is incorrect.");
-      return;
-    }
-
-    if (verifyOpenForId) {
-      setRevealedIds((current) => (current.includes(verifyOpenForId) ? current : [...current, verifyOpenForId]));
-    }
-
-    setVerifyOpenForId(null);
-    setVerifyPassword("");
-    setVerifyError("");
+  function togglePasscodeReveal(accessCodeId: string) {
+    setRevealedIds((current) => (current.includes(accessCodeId) ? current.filter((id) => id !== accessCodeId) : [...current, accessCodeId]));
   }
 
   return (
@@ -131,7 +109,7 @@ export function AccessCodesManager({ initialAccessCodes = defaultAccessCodes }: 
       <div className="mt-5 grid gap-3">
         {sortedAccessCodes.length > 0 ? (
           sortedAccessCodes.map((accessCode) => (
-            <article key={accessCode.id} className="rounded-xl border border-slate-200 bg-[#f2fbf8] p-4">
+            <article key={accessCode.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h4 className="text-base font-semibold text-slate-900">{accessCode.title}</h4>
@@ -145,12 +123,21 @@ export function AccessCodesManager({ initialAccessCodes = defaultAccessCodes }: 
                   ) : (
                     <button
                       type="button"
-                      onClick={() => openVerifyModal(accessCode.id)}
+                      onClick={() => togglePasscodeReveal(accessCode.id)}
                       className="font-mono text-sm text-amber-700 underline-offset-2 hover:underline"
                     >
                       Click to show passcode
                     </button>
                   )}
+                  {revealedIds.includes(accessCode.id) ? (
+                    <button
+                      type="button"
+                      onClick={() => togglePasscodeReveal(accessCode.id)}
+                      className="mt-1 block text-xs text-slate-600 underline-offset-2 hover:underline"
+                    >
+                      Hide passcode
+                    </button>
+                  ) : null}
                 </div>
               </div>
 
@@ -235,55 +222,6 @@ export function AccessCodesManager({ initialAccessCodes = defaultAccessCodes }: 
         </div>
       ) : null}
 
-      {verifyOpenForId ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 py-6 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-xl font-semibold">Verify password</h3>
-                <p className="mt-1 text-sm text-slate-500">Enter your password to reveal this passcode.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setVerifyOpenForId(null)}
-                className="rounded-lg border border-slate-300 p-2 text-slate-700"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <label className="mt-5 grid gap-1.5 text-sm font-medium">
-              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Password</span>
-              <input
-                type="password"
-                value={verifyPassword}
-                onChange={(event) => setVerifyPassword(event.target.value)}
-                className="rounded-lg border border-slate-300 px-3 py-2"
-                placeholder="Enter your password"
-              />
-            </label>
-
-            {verifyError ? <p className="mt-3 text-sm text-rose-700">{verifyError}</p> : null}
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={handleVerifyPassword}
-                className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white"
-              >
-                Reveal passcode
-              </button>
-              <button
-                type="button"
-                onClick={() => setVerifyOpenForId(null)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
