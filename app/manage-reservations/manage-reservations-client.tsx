@@ -22,7 +22,12 @@ type ApiResult = {
   reservationId?: string;
 };
 
-export function ManageReservationsClient({ initialReservations }: { initialReservations: Reservation[] }) {
+type ManageReservationsClientProps = {
+  initialReservations: Reservation[];
+  userNameById: Record<string, string>;
+};
+
+export function ManageReservationsClient({ initialReservations, userNameById }: ManageReservationsClientProps) {
   const [reservations, setReservations] = useState<ReservationRow[]>(initialReservations);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
@@ -154,111 +159,121 @@ export function ManageReservationsClient({ initialReservations }: { initialReser
             You do not have any reservations yet.
           </div>
         ) : (
-          sorted.map((reservation) => (
-            <article key={reservation.id} className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {format(parseISO(reservation.startDate), "MMM d, yyyy")} to {format(parseISO(reservation.endDate), "MMM d, yyyy")}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">Created {format(parseISO(reservation.createdAt), "MMM d, yyyy")}</p>
-                </div>
-                <span className={statusBadgeClass(reservation.status)}>{getStatusLabel(reservation)}</span>
-              </div>
+          sorted.map((reservation) => {
+            const sharedWithNames = (reservation.sharedWithUserIds ?? [])
+              .map((userId) => userNameById[userId])
+              .filter((name): name is string => Boolean(name));
+            const isSharedReservation = sharedWithNames.length > 0;
 
-              {editingId === reservation.id ? (
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <label className="grid gap-1 text-sm">
-                    <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Start date</span>
-                    <input
-                      type="date"
-                      value={draft.startDate}
-                      onChange={(event) => setDraft((current) => ({ ...current, startDate: event.target.value }))}
-                      className="rounded-lg border border-slate-300 px-3 py-2"
-                    />
-                  </label>
-                  <label className="grid gap-1 text-sm">
-                    <span className="text-xs uppercase tracking-[0.12em] text-slate-500">End date</span>
-                    <input
-                      type="date"
-                      value={draft.endDate}
-                      onChange={(event) => setDraft((current) => ({ ...current, endDate: event.target.value }))}
-                      className="rounded-lg border border-slate-300 px-3 py-2"
-                    />
-                  </label>
-                  <label className="grid gap-1 text-sm sm:col-span-3">
-                    <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Notes</span>
-                    <textarea
-                      value={draft.notes}
-                      onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))}
-                      className="min-h-20 rounded-lg border border-slate-300 px-3 py-2"
-                      placeholder="Optional notes"
-                    />
-                  </label>
-
-                  <div className="flex flex-wrap gap-2 sm:col-span-3">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        void saveReservation(reservation.id);
-                      }}
-                      className="rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-60"
-                    >
-                      Save changes
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        setEditingId(null);
-                        setStatus("");
-                      }}
-                      className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700"
-                    >
-                      Cancel
-                    </button>
+            return (
+              <article key={reservation.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {format(parseISO(reservation.startDate), "MMM d, yyyy")} to {format(parseISO(reservation.endDate), "MMM d, yyyy")}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">Created {format(parseISO(reservation.createdAt), "MMM d, yyyy")}</p>
                   </div>
+                  <span className={statusBadgeClass(reservation.status)}>{getStatusLabel(reservation)}</span>
                 </div>
-              ) : (
-                <>
-                  {reservation.notes ? <p className="mt-3 text-sm text-slate-600">{reservation.notes}</p> : null}
+
+                {editingId === reservation.id ? (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <label className="grid gap-1 text-sm">
+                      <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Start date</span>
+                      <input
+                        type="date"
+                        value={draft.startDate}
+                        onChange={(event) => setDraft((current) => ({ ...current, startDate: event.target.value }))}
+                        className="rounded-lg border border-slate-300 px-3 py-2"
+                      />
+                    </label>
+                    <label className="grid gap-1 text-sm">
+                      <span className="text-xs uppercase tracking-[0.12em] text-slate-500">End date</span>
+                      <input
+                        type="date"
+                        value={draft.endDate}
+                        onChange={(event) => setDraft((current) => ({ ...current, endDate: event.target.value }))}
+                        className="rounded-lg border border-slate-300 px-3 py-2"
+                      />
+                    </label>
+                    <label className="grid gap-1 text-sm sm:col-span-3">
+                      <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Notes</span>
+                      <textarea
+                        value={draft.notes}
+                        onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))}
+                        className="min-h-20 rounded-lg border border-slate-300 px-3 py-2"
+                        placeholder="Optional notes"
+                      />
+                    </label>
+
+                    <div className="flex flex-wrap gap-2 sm:col-span-3">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          void saveReservation(reservation.id);
+                        }}
+                        className="rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-60"
+                      >
+                        Save changes
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setEditingId(null);
+                          setStatus("");
+                        }}
+                        className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className={`mt-3 text-sm ${isSharedReservation ? "text-emerald-700" : "text-slate-500"}`}>
+                      {isSharedReservation ? `Shared with: ${sharedWithNames.join(", ")}` : "Shared: No"}
+                    </p>
+                    {reservation.notes ? <p className="mt-2 text-sm text-slate-600">{reservation.notes}</p> : null}
                     {reservation.declineReason ? (
                       <p className={`mt-2 text-sm ${reservation.declineReason === "Canceled by user" ? "text-amber-700" : "text-rose-700"}`}>
                         {reservation.declineReason === "Canceled by user" ? "Cancellation note: Canceled by you" : `Decline reason: ${reservation.declineReason}`}
                       </p>
                     ) : null}
 
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {reservation.status !== "declined" ? (
-                      <>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => startEditing(reservation)}
-                          className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 disabled:opacity-60"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => {
-                            void cancelReservation(reservation.id);
-                          }}
-                          className="rounded-lg border border-rose-300 px-4 py-2 text-rose-700 disabled:opacity-60"
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <span className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800">Canceled</span>
-                    )}
-                  </div>
-                </>
-              )}
-            </article>
-          ))
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {reservation.status !== "declined" ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => startEditing(reservation)}
+                            className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 disabled:opacity-60"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => {
+                              void cancelReservation(reservation.id);
+                            }}
+                            className="rounded-lg border border-rose-300 px-4 py-2 text-rose-700 disabled:opacity-60"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <span className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800">Canceled</span>
+                      )}
+                    </div>
+                  </>
+                )}
+              </article>
+            );
+          })
         )}
       </div>
     </section>

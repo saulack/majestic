@@ -3,13 +3,14 @@ import { compareAsc, format, parseISO } from "date-fns";
 import { AppShell } from "@/components/app-shell";
 import { HomeMaintenanceStatus } from "@/components/home-maintenance-status";
 import { UpcomingReservationsList } from "@/components/upcoming-reservations-list";
-import { getAllReservations, getAuthenticatedUserProfile, getMaintenanceSummaries } from "@/lib/live-data";
+import { getAllReservations, getAuthenticatedUserProfile, getInAppNotificationsForUser, getMaintenanceSummaries, getNotificationPreference } from "@/lib/live-data";
 import { getNumberAppSetting } from "@/lib/app-settings";
 import { getReservationApprovalsEnabled, HOMEPAGE_RESERVATIONS_COUNT_KEY } from "@/lib/feature-flags";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
 import { isAdminLike } from "@/lib/rbac";
+import { maybeSendInAppInboxDigestEmail } from "@/lib/notifications";
 import type { AppRole, Reservation } from "@/lib/types";
 
 const DEFAULT_HOME_RESERVATION_COUNT = 5;
@@ -27,7 +28,12 @@ export default async function HomePage() {
   const adminLike = isAdminLike(actingUser);
   const upcomingReservationCount = await getNumberAppSetting(HOMEPAGE_RESERVATIONS_COUNT_KEY, DEFAULT_HOME_RESERVATION_COUNT);
   const approvalsEnabled = await getReservationApprovalsEnabled();
-  const [reservations, maintenanceSummaries] = await Promise.all([getAllReservations(), getMaintenanceSummaries()]);
+  const [reservations, maintenanceSummaries, notifications, notificationPreference] = await Promise.all([
+    getAllReservations(),
+    getMaintenanceSummaries(),
+    getInAppNotificationsForUser(actingUser.id),
+    getNotificationPreference(actingUser.id)
+  ]);
   const normalizedReservations: Reservation[] = approvalsEnabled
     ? reservations
     : reservations.map((reservation) =>
@@ -52,6 +58,16 @@ export default async function HomePage() {
     ? normalizedReservations.filter((reservation) => reservation.status === "pending").length
     : normalizedReservations.filter((reservation) => reservation.status === "approved").length;
   const currentRoleMetricValue: AppRole = profile.role === "superadmin" ? profile.role : actingUser.role;
+  const notificationCount = notifications.filter((notification) => !notification.isRead).length;
+
+  await maybeSendInAppInboxDigestEmail({
+    userId: actingUser.id,
+    email: actingUser.email,
+    fullName: actingUser.fullName,
+    unreadCount: notificationCount,
+    enabled: notificationPreference?.inAppInboxDigestEmail ?? false,
+    lastSentAt: notificationPreference?.inAppInboxDigestLastSentAt
+  });
 
   return (
     <AppShell initialRole={actingUser.role} initialPreviewRole={previewRole}>
@@ -69,7 +85,7 @@ export default async function HomePage() {
           <div className="grid gap-3 p-5 sm:grid-cols-3 sm:gap-4 sm:p-6">
             <Metric label={adminLike ? "Visible reservations" : "My reservations"} value={String(adminLike ? reservations.length : myReservations.length)} />
             <Metric label={adminLike ? requestMetricLabel : "Your next stay"} value={adminLike ? String(requestMetricValue) : myNextStay?.startDate ?? "-"} />
-            <Metric label={adminLike ? "Current role" : "Upcoming reservations"} value={adminLike ? currentRoleMetricValue : String(upcomingMyReservations.length)} />
+            <Metric label="Notifications" value={String(notificationCount)} href="/notifications" />
           </div>
         </div>
 
@@ -112,11 +128,25 @@ export default async function HomePage() {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4">
+function Metric({ label, value, href }: { label: string; value: string; href?: string }) {
+  const content = (
+    <>
       <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 sm:text-xs sm:tracking-[0.16em]">{label}</p>
       <p className="mt-2 text-lg font-semibold text-slate-900 sm:text-xl">{value}</p>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 transition hover:border-amber-700 hover:bg-amber-50/40 sm:p-4">
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4">
+      {content}
     </div>
   );
 }

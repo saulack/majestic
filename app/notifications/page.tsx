@@ -1,11 +1,11 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { ManageReservationsClient } from "@/app/manage-reservations/manage-reservations-client";
-import { getAllProfiles, getAuthenticatedUserProfile, getReservationsForUser } from "@/lib/live-data";
+import { getAuthenticatedUserProfile, getInAppNotificationsForUser } from "@/lib/live-data";
 import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
+import { NotificationsFeedClient } from "@/app/notifications/notifications-feed-client";
 
-export default async function ManageReservationsPage() {
+export default async function NotificationsPage() {
   const cookieStore = await cookies();
   const previewRole = getRolePreviewFromCookieValue(cookieStore.get("majestic-role-preview")?.value ?? null);
   const profile = await getAuthenticatedUserProfile();
@@ -15,16 +15,11 @@ export default async function ManageReservationsPage() {
   }
 
   const actingUser = getEffectiveUser(profile, previewRole);
-  const [reservations, profiles] = await Promise.all([
-    getReservationsForUser(actingUser.id),
-    getAllProfiles()
-  ]);
-
-  const userNameById = Object.fromEntries(profiles.map((entry) => [entry.id, entry.fullName]));
+  const notifications = await getInAppNotificationsForUser(actingUser.id);
 
   return (
     <AppShell initialRole={actingUser.role} initialPreviewRole={previewRole}>
-      <ManageReservationsClient initialReservations={reservations} userNameById={userNameById} />
+      <NotificationsFeedClient initialNotifications={notifications} />
     </AppShell>
   );
 }

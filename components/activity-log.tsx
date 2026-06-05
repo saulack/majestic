@@ -10,7 +10,7 @@ import type { MaintenanceNotification, MaintenanceRecord, Reservation } from "@/
 
 type LogEntry = {
   id: string;
-  type: "created" | "approved" | "declined" | "maintenance-scheduled" | "maintenance-notified";
+  type: "created" | "approved" | "declined" | "canceled" | "maintenance-scheduled" | "maintenance-notified";
   userName: string;
   createdByName?: string;
   reviewerName?: string;
@@ -52,7 +52,7 @@ function buildLogEntries(
     if (approvalsEnabled && (reservation.status === "approved" || reservation.status === "declined") && reservation.reviewedAt) {
       entries.push({
         id: `${reservation.id}-${reservation.status}`,
-        type: reservation.status,
+        type: reservation.status === "declined" && reservation.declineReason === "Canceled by user" ? "canceled" : reservation.status,
         userName: reservation.userName,
         reviewerName: reservation.reviewedByName,
         startDate: reservation.startDate,
@@ -249,29 +249,32 @@ export function ActivityLog({
               );
             }
 
-            const isApproved = entry.type === "approved";
+            const isReserved = entry.type === "approved";
+            const isCanceled = entry.type === "canceled";
 
             return (
               <li key={entry.id} className="mb-6 ml-6 last:mb-0">
                 <span
-                  className={`absolute -left-3 flex h-6 w-6 items-center justify-center rounded-full ring-4 ring-[rgb(33,27,24)] ${isApproved ? "bg-emerald-100" : "bg-rose-100"}`}
+                  className={`absolute -left-3 flex h-6 w-6 items-center justify-center rounded-full ring-4 ring-[rgb(33,27,24)] ${isReserved ? "bg-emerald-100" : "bg-rose-100"}`}
                 >
-                  {isApproved ? <CheckCircle2 className="h-4 w-4 text-emerald-700" /> : <XCircle className="h-4 w-4 text-rose-700" />}
+                  {isReserved ? <CheckCircle2 className="h-4 w-4 text-emerald-700" /> : <XCircle className="h-4 w-4 text-rose-700" />}
                 </span>
 
                 <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <p className="text-sm font-medium text-slate-800">
-                      {isApproved
-                        ? `${entry.reviewerName ?? "An admin"} approved ${entry.userName}'s booking`
-                        : `${entry.reviewerName ?? "An admin"} declined ${entry.userName}'s booking`}
+                      {isReserved
+                        ? `${entry.reviewerName ?? "An admin"} reserved ${entry.userName}'s booking`
+                        : isCanceled
+                          ? `${entry.userName} canceled this booking`
+                          : `${entry.reviewerName ?? "An admin"} declined ${entry.userName}'s booking`}
                     </p>
                     <time className="whitespace-nowrap text-[11px] text-slate-400 sm:text-xs">{formatRelative(entry.timestamp)}</time>
                   </div>
 
                   <p className="mt-1 text-xs text-slate-500">{formatDateRange(entry.startDate, entry.endDate, entry.nights)}</p>
 
-                  {!isApproved && entry.declineReason ? (
+                  {!isReserved && !isCanceled && entry.declineReason ? (
                     <div className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">
                       <span className="font-semibold">Reason: </span>
                       {entry.declineReason}

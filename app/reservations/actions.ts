@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatMaintenanceAlert, getDueMaintenanceTypes, type MaintenanceContactInfo } from "@/lib/maintenance";
 import { sendReservationConfirmationEmail } from "@/lib/notifications";
+import { hasDateConflict } from "@/lib/reservation-utils";
 import type { MaintenanceType } from "@/lib/types";
 
 export type ActionResult = { error?: string; success?: boolean; maintenanceAlerts?: string[] };
@@ -17,6 +18,8 @@ export async function createReservation(params: {
   bookedForUserId: string;
   allowDoubleBooking?: boolean;
   sharedWithUserIds?: string[];
+  sharedRangeStartDate?: string;
+  sharedRangeEndDate?: string;
 }): Promise<ActionResult> {
   const supabase = await createServerSupabaseClient();
   const admin = createAdminClient();
@@ -39,6 +42,8 @@ export async function createReservation(params: {
 
   const { startDate, endDate, notes, approvalEnabled, bookedForUserId, allowDoubleBooking = false } = params;
   const sharedWithUserIds = allowDoubleBooking ? [...new Set((params.sharedWithUserIds ?? []).map((entry) => entry.trim()).filter(Boolean))] : [];
+  const sharedRangeStartDate = allowDoubleBooking ? (params.sharedRangeStartDate?.trim() ?? "") : "";
+  const sharedRangeEndDate = allowDoubleBooking ? (params.sharedRangeEndDate?.trim() ?? "") : "";
 
   const { data: actingProfile } = await admin
     .from("profiles")
@@ -75,24 +80,51 @@ export async function createReservation(params: {
     return { error: "Choose at least one user to share overlap access with." };
   }
 
+  if (allowDoubleBooking && (sharedRangeStartDate || sharedRangeEndDate)) {
+    if (!sharedRangeStartDate || !sharedRangeEndDate) {
+      return { error: "Choose both share range dates, or leave both empty to share the whole reservation." };
+    }
+
+    if (sharedRangeEndDate < sharedRangeStartDate) {
+      return { error: "Sharable range end date must be on or after sharable range start date." };
+    }
+
+    if (sharedRangeStartDate < startDate || sharedRangeEndDate > endDate) {
+      return { error: "Sharable range must be within the reservation date range." };
+    }
+  }
+
   // Check for overlapping approved or pending reservations.
   const { data: conflicts } = await admin
     .from("reservations")
-    .select("id,user_id,shared_with_user_ids")
+    .select("id,user_id,start_date,end_date,shared_with_user_ids,shared_range_start_date,shared_range_end_date")
     .lte("start_date", endDate)
     .gte("end_date", startDate)
     .in("status", ["pending", "approved"]);
 
-  const requestedSharedSet = new Set(sharedWithUserIds);
-  const disallowedConflict = (conflicts ?? []).some((conflict) => {
-    if (!allowDoubleBooking) {
-      return true;
-    }
+  const conflictRows = (conflicts ?? []).map((conflict) => ({
+    id: conflict.id as string,
+    userId: conflict.user_id as string,
+    userName: "Unknown",
+    startDate: conflict.start_date as string,
+    endDate: conflict.end_date as string,
+    sharedWithUserIds: (conflict.shared_with_user_ids as string[] | null) ?? [],
+    sharedRangeStartDate: (conflict.shared_range_start_date as string | null) ?? undefined,
+    sharedRangeEndDate: (conflict.shared_range_end_date as string | null) ?? undefined,
+    status: "approved" as const,
+    createdAt: new Date().toISOString()
+  }));
 
-    const existingSharedSet = new Set((conflict.shared_with_user_ids as string[] | null) ?? []);
-    const explicitlyAllowed = requestedSharedSet.has(conflict.user_id) || existingSharedSet.has(bookedForUserId);
-    return !explicitlyAllowed;
-  });
+  const disallowedConflict = hasDateConflict(
+    conflictRows,
+    startDate,
+    endDate,
+    undefined,
+    bookedForUserId,
+    allowDoubleBooking ? sharedWithUserIds : [],
+    allowDoubleBooking && sharedRangeStartDate && sharedRangeEndDate ? sharedRangeStartDate : undefined,
+    allowDoubleBooking && sharedRangeStartDate && sharedRangeEndDate ? sharedRangeEndDate : undefined
+  );
 
   if (disallowedConflict) {
     return { error: "This date range conflicts with a reservation that is not shared with the selected user set." };
@@ -104,6 +136,8 @@ export async function createReservation(params: {
       user_id: bookedForUserId,
       created_by: user.id,
       shared_with_user_ids: sharedWithUserIds,
+      shared_range_start_date: allowDoubleBooking && sharedRangeStartDate && sharedRangeEndDate ? sharedRangeStartDate : null,
+      shared_range_end_date: allowDoubleBooking && sharedRangeStartDate && sharedRangeEndDate ? sharedRangeEndDate : null,
       start_date: startDate,
       end_date: endDate,
       notes: notes.trim() || null,

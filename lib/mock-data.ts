@@ -73,19 +73,22 @@ export const mockPreferences: NotificationPreference[] = [
     userId: "user-1",
     channels: ["email", "sms"],
     reservationConfirmationEmail: true,
-    reservationBookedByOtherEmail: true
+    reservationBookedByOtherEmail: true,
+    inAppInboxDigestEmail: true
   },
   {
     userId: "user-2",
     channels: ["email"],
     reservationConfirmationEmail: true,
-    reservationBookedByOtherEmail: true
+    reservationBookedByOtherEmail: true,
+    inAppInboxDigestEmail: false
   },
   {
     userId: "user-3",
     channels: ["email"],
     reservationConfirmationEmail: false,
-    reservationBookedByOtherEmail: false
+    reservationBookedByOtherEmail: false,
+    inAppInboxDigestEmail: false
   }
 ];
 

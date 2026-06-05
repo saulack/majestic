@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuthenticated } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { hasDateConflict } from "@/lib/reservation-utils";
 
 type UpdateReservationInput = {
   reservationId?: string;
@@ -42,7 +43,7 @@ export async function PATCH(request: Request) {
 
   const { data: existingReservation, error: existingError } = await admin
     .from("reservations")
-    .select("id,user_id,shared_with_user_ids")
+    .select("id,user_id,start_date,end_date,shared_with_user_ids,shared_range_start_date,shared_range_end_date")
     .eq("id", reservationId)
     .maybeSingle();
 
@@ -56,18 +57,39 @@ export async function PATCH(request: Request) {
 
   const { data: conflicts } = await admin
     .from("reservations")
-    .select("id,user_id,shared_with_user_ids")
+    .select("id,user_id,start_date,end_date,shared_with_user_ids,shared_range_start_date,shared_range_end_date")
     .lte("start_date", endDate)
     .gte("end_date", startDate)
     .in("status", ["pending", "approved"])
     .neq("id", reservationId);
 
-  const requestedSharedSet = new Set((existingReservation.shared_with_user_ids as string[] | null) ?? []);
-  const hasDisallowedConflict = (conflicts ?? []).some((conflict) => {
-    const existingSharedSet = new Set((conflict.shared_with_user_ids as string[] | null) ?? []);
-    const explicitlyAllowed = requestedSharedSet.has(conflict.user_id) || existingSharedSet.has(auth.userId);
-    return !explicitlyAllowed;
-  });
+  const conflictRows = (conflicts ?? []).map((conflict) => ({
+    id: conflict.id as string,
+    userId: conflict.user_id as string,
+    userName: "Unknown",
+    startDate: conflict.start_date as string,
+    endDate: conflict.end_date as string,
+    sharedWithUserIds: (conflict.shared_with_user_ids as string[] | null) ?? [],
+    sharedRangeStartDate: (conflict.shared_range_start_date as string | null) ?? undefined,
+    sharedRangeEndDate: (conflict.shared_range_end_date as string | null) ?? undefined,
+    status: "approved" as const,
+    createdAt: new Date().toISOString()
+  }));
+
+  const requestedSharedWithUserIds = (existingReservation.shared_with_user_ids as string[] | null) ?? [];
+  const requestedSharedRangeStartDate = (existingReservation.shared_range_start_date as string | null) ?? undefined;
+  const requestedSharedRangeEndDate = (existingReservation.shared_range_end_date as string | null) ?? undefined;
+
+  const hasDisallowedConflict = hasDateConflict(
+    conflictRows,
+    startDate,
+    endDate,
+    undefined,
+    auth.userId,
+    requestedSharedWithUserIds,
+    requestedSharedRangeStartDate,
+    requestedSharedRangeEndDate
+  );
 
   if (hasDisallowedConflict) {
     return NextResponse.json({ error: "This date range conflicts with an existing reservation." }, { status: 400 });

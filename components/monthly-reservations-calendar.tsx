@@ -68,7 +68,10 @@ export function MonthlyReservationsCalendar({
   const [reservationMode, setReservationMode] = useState<"self" | "other">("self");
   const [selectedUserId, setSelectedUserId] = useState(actingUser.id);
   const [allowDoubleBooking, setAllowDoubleBooking] = useState(false);
+  const [shareScope, setShareScope] = useState<"whole" | "range">("whole");
   const [sharedWithUserIds, setSharedWithUserIds] = useState<string[]>([]);
+  const [sharedRangeStartDate, setSharedRangeStartDate] = useState("");
+  const [sharedRangeEndDate, setSharedRangeEndDate] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -92,8 +95,23 @@ export function MonthlyReservationsCalendar({
   const otherUsers = users.filter((user) => user.id !== actingUser.id);
   const bookingTargetId = reservationMode === "self" ? actingUser.id : selectedUserId;
   const shareableUsers = users.filter((user) => user.id !== bookingTargetId);
+  const requestedShareRangeStart = allowDoubleBooking && shareScope === "range" && sharedRangeStartDate && sharedRangeEndDate
+    ? sharedRangeStartDate
+    : undefined;
+  const requestedShareRangeEnd = allowDoubleBooking && shareScope === "range" && sharedRangeStartDate && sharedRangeEndDate
+    ? sharedRangeEndDate
+    : undefined;
   const selectionHasConflict = activeStart && activeEnd
-    ? hasDateConflict(reservations, activeStart, activeEnd, undefined, bookingTargetId, sharedWithUserIds)
+    ? hasDateConflict(
+        reservations,
+        activeStart,
+        activeEnd,
+        undefined,
+        bookingTargetId,
+        sharedWithUserIds,
+        requestedShareRangeStart,
+        requestedShareRangeEnd
+      )
     : false;
 
   useEffect(() => {
@@ -114,12 +132,24 @@ export function MonthlyReservationsCalendar({
     const [nextStart, nextEnd] = normalizeRange(first, second);
     setStartDate(nextStart);
     setEndDate(nextEnd);
+    if (source === "input") {
+      setMonthCursor(startOfMonth(parseISO(nextStart)));
+    }
     setSelectionStatus(source === "calendar" ? "Selection updated from calendar." : "Selection updated from date fields.");
   }
 
   function canSelectRange(first: string, second: string) {
     const [rangeStart, rangeEnd] = normalizeRange(first, second);
-    return !hasDateConflict(reservations, rangeStart, rangeEnd, undefined, bookingTargetId, allowDoubleBooking ? sharedWithUserIds : []);
+    return !hasDateConflict(
+      reservations,
+      rangeStart,
+      rangeEnd,
+      undefined,
+      bookingTargetId,
+      allowDoubleBooking ? sharedWithUserIds : [],
+      allowDoubleBooking && shareScope === "range" && sharedRangeStartDate && sharedRangeEndDate ? sharedRangeStartDate : undefined,
+      allowDoubleBooking && shareScope === "range" && sharedRangeStartDate && sharedRangeEndDate ? sharedRangeEndDate : undefined
+    );
   }
 
   function handleCalendarClick(dayKey: string) {
@@ -250,7 +280,10 @@ export function MonthlyReservationsCalendar({
     setReservationMode("self");
     setSelectedUserId(actingUser.id);
     setAllowDoubleBooking(false);
+    setShareScope("whole");
     setSharedWithUserIds([]);
+    setSharedRangeStartDate("");
+    setSharedRangeEndDate("");
   }
 
   function handleSave() {
@@ -277,6 +310,23 @@ export function MonthlyReservationsCalendar({
       return;
     }
 
+    if (allowDoubleBooking && shareScope === "range") {
+      if (!sharedRangeStartDate || !sharedRangeEndDate) {
+        setFormMessage({ type: "error", text: "Choose a sharable start and end date, or switch to whole reservation sharing." });
+        return;
+      }
+
+      if (sharedRangeEndDate < sharedRangeStartDate) {
+        setFormMessage({ type: "error", text: "Sharable end date must be on or after sharable start date." });
+        return;
+      }
+
+      if (sharedRangeStartDate < s || sharedRangeEndDate > e) {
+        setFormMessage({ type: "error", text: "Sharable range must stay inside your reservation dates." });
+        return;
+      }
+    }
+
     setFormMessage(null);
     startTransition(async () => {
       const result = await createReservation({
@@ -286,6 +336,8 @@ export function MonthlyReservationsCalendar({
         bookedForUserId: bookingTargetId,
         allowDoubleBooking,
         sharedWithUserIds,
+        sharedRangeStartDate: allowDoubleBooking && shareScope === "range" ? sharedRangeStartDate : undefined,
+        sharedRangeEndDate: allowDoubleBooking && shareScope === "range" ? sharedRangeEndDate : undefined,
         approvalEnabled: approvalsEnabled
       });
 
@@ -425,7 +477,10 @@ export function MonthlyReservationsCalendar({
                 onCheckedChange={(checked) => {
                   setAllowDoubleBooking(checked);
                   if (!checked) {
+                    setShareScope("whole");
                     setSharedWithUserIds([]);
+                    setSharedRangeStartDate("");
+                    setSharedRangeEndDate("");
                   }
                 }}
                 srLabel="Allow double booking"
@@ -437,6 +492,61 @@ export function MonthlyReservationsCalendar({
 
           {allowDoubleBooking ? (
             <div className="grid gap-2 sm:col-span-2">
+              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable scope</span>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">
+                    {shareScope === "whole" ? "Whole reservation is sharable" : "Only selected date range is sharable"}
+                  </p>
+                  <p className="text-sm text-slate-500">Choose whether invite-based overlap works for every date or only part of the stay.</p>
+                </div>
+                <ToggleSwitch
+                  checked={shareScope === "range"}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setShareScope("range");
+                      setSharedRangeStartDate((current) => current || startDate);
+                      setSharedRangeEndDate((current) => current || endDate);
+                      return;
+                    }
+
+                    setShareScope("whole");
+                    setSharedRangeStartDate("");
+                    setSharedRangeEndDate("");
+                  }}
+                  srLabel="Toggle sharable scope"
+                  offLabel="Whole"
+                  onLabel="Range"
+                />
+              </div>
+
+              {shareScope === "range" ? (
+                <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 sm:grid-cols-2">
+                  <label className="grid gap-1 text-sm font-medium">
+                    <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable start</span>
+                    <input
+                      type="date"
+                      value={sharedRangeStartDate}
+                      min={startDate || undefined}
+                      max={endDate || undefined}
+                      onChange={(event) => setSharedRangeStartDate(event.target.value)}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-sm font-medium">
+                    <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable end</span>
+                    <input
+                      type="date"
+                      value={sharedRangeEndDate}
+                      min={startDate || undefined}
+                      max={endDate || undefined}
+                      onChange={(event) => setSharedRangeEndDate(event.target.value)}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    />
+                  </label>
+                </div>
+              ) : null}
+
               <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Allowed overlap users</span>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
                 {shareableUsers.length === 0 ? (
@@ -512,6 +622,9 @@ export function MonthlyReservationsCalendar({
               value={startDate}
               onChange={(e) => {
                 const nextStart = e.target.value;
+                if (nextStart) {
+                  setMonthCursor(startOfMonth(parseISO(nextStart)));
+                }
                 setStartDate(nextStart);
 
                 if (!endDate) {
@@ -530,6 +643,9 @@ export function MonthlyReservationsCalendar({
               value={endDate}
               onChange={(e) => {
                 const nextEnd = e.target.value;
+                if (nextEnd) {
+                  setMonthCursor(startOfMonth(parseISO(nextEnd)));
+                }
                 setEndDate(nextEnd);
 
                 if (!startDate) {
@@ -585,23 +701,28 @@ export function MonthlyReservationsCalendar({
             const hasSharedStay = reservationsOnDay.length > 1;
             const isBookedCell = Boolean(primaryReservation);
             const isOwnReservation = primaryReservation?.userId === actingUser.id;
+            const isWithinExistingShareRange = !primaryReservation?.sharedRangeStartDate || !primaryReservation?.sharedRangeEndDate
+              ? true
+              : dayKey >= primaryReservation.sharedRangeStartDate && dayKey <= primaryReservation.sharedRangeEndDate;
             const canOverlapThisReservation =
-              !isOwnReservation && Boolean(primaryReservation?.sharedWithUserIds?.includes(actingUser.id));
+              !isOwnReservation &&
+              Boolean(primaryReservation?.sharedWithUserIds?.includes(actingUser.id)) &&
+              isWithinExistingShareRange;
             const sharedStayGuests = reservationsOnDay.slice(0, 2);
             const extraSharedStayCount = Math.max(reservationsOnDay.length - sharedStayGuests.length, 0);
 
             const bookedCellCls =
               hasSharedStay
-                ? "border-[#6bbfc7] bg-[linear-gradient(135deg,#e6fbf6_0%,#b8ecdf_38%,#9fd8eb_100%)] text-[#103b44] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                ? "border-[#6bbfc7] bg-[linear-gradient(135deg,#e6fbf6_0%,#b8ecdf_38%,#9fd8eb_100%)] text-[#103b44] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-[#4ca8b2] dark:bg-[linear-gradient(135deg,#0f3a42_0%,#146172_38%,#1f4d60_100%)] dark:text-slate-100 dark:shadow-none"
                 : primaryReservation?.status === "declined"
-                ? "bg-rose-300 text-rose-900 border-rose-400"
+                ? "bg-rose-300 text-rose-900 border-rose-400 dark:bg-rose-900/70 dark:text-rose-100 dark:border-rose-700"
                 : canOverlapThisReservation
-                  ? "border-[#7fb6c9] bg-[linear-gradient(135deg,#9fd9e2_0%,#9fd9e2_49%,#ffffff_50%,#ffffff_100%)] text-slate-900 dark:border-[#27566a] dark:bg-[linear-gradient(135deg,#1f4d60_0%,#1f4d60_49%,#0f172a_50%,#0f172a_100%)] dark:text-slate-100"
+                  ? "border-[#49a38f] bg-[linear-gradient(135deg,#62bea9_0%,#62bea9_49%,#ffffff_50%,#ffffff_100%)] text-slate-900 dark:border-[#27566a] dark:bg-[linear-gradient(135deg,#1f4d60_0%,#1f4d60_49%,#0f172a_50%,#0f172a_100%)] dark:text-slate-100"
                 : !isOwnReservation
-                  ? "bg-slate-300 text-slate-900 border-slate-400"
+                  ? "bg-slate-300 text-slate-900 border-slate-400 dark:bg-slate-600 dark:text-slate-100 dark:border-slate-500"
                   : primaryReservation?.status === "pending"
-                  ? "bg-[#9fd9e2] text-[#184f5a] border-[#7fc1cc]"
-                  : "bg-[#62bea9] text-white border-[#49a38f]";
+                  ? "bg-[#9fd9e2] text-[#184f5a] border-[#7fc1cc] dark:bg-cyan-800/75 dark:text-cyan-100 dark:border-cyan-700"
+                  : "bg-[#62bea9] text-white border-[#49a38f] dark:bg-emerald-500 dark:text-slate-950 dark:border-emerald-300";
 
             return (
               <button

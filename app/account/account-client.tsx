@@ -33,6 +33,9 @@ export function AccountClientPage({
   const [reservationBookedByOtherEmail, setReservationBookedByOtherEmail] = useState(
     preferences?.reservationBookedByOtherEmail ?? false
   );
+  const [inAppInboxDigestEmail, setInAppInboxDigestEmail] = useState(
+    preferences?.inAppInboxDigestEmail ?? false
+  );
   const [darkModeEnabled, setDarkModeEnabled] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -102,7 +105,7 @@ export function AccountClientPage({
     const response = await fetch("/api/account/notification-settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reservationConfirmationEmail, reservationBookedByOtherEmail })
+      body: JSON.stringify({ reservationConfirmationEmail, reservationBookedByOtherEmail, inAppInboxDigestEmail })
     });
 
     const payload = (await response.json()) as { message?: string; error?: string };
@@ -182,6 +185,20 @@ export function AccountClientPage({
                   checked={reservationBookedByOtherEmail}
                   onCheckedChange={setReservationBookedByOtherEmail}
                   srLabel="Toggle delegated reservation confirmation email"
+                  offLabel="Off"
+                  onLabel="On"
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Email me when I have in-app notifications</p>
+                  <p className="mt-1 text-xs text-slate-500">Sends a Majestic inbox summary email when unread notifications are waiting.</p>
+                </div>
+                <ToggleSwitch
+                  checked={inAppInboxDigestEmail}
+                  onCheckedChange={setInAppInboxDigestEmail}
+                  srLabel="Toggle in-app notification digest email"
                   offLabel="Off"
                   onLabel="On"
                 />

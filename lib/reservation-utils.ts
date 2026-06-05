@@ -1,15 +1,24 @@
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import type { Reservation } from "@/lib/types";
 
-function canShareOverlap(
-  reservation: Reservation,
-  bookingUserId: string,
-  requestedSharedWithUserIds: string[]
+function overlapWithinShareRange(
+  overlapStartDate: string,
+  overlapEndDate: string,
+  shareRangeStartDate?: string,
+  shareRangeEndDate?: string
 ) {
-  const requestedSet = new Set(requestedSharedWithUserIds);
-  const existingSet = new Set(reservation.sharedWithUserIds ?? []);
+  if (!shareRangeStartDate || !shareRangeEndDate) {
+    return true;
+  }
 
-  return requestedSet.has(reservation.userId) || existingSet.has(bookingUserId);
+  return overlapStartDate >= shareRangeStartDate && overlapEndDate <= shareRangeEndDate;
+}
+
+function getOverlapBounds(startDate: string, endDate: string, reservation: Reservation) {
+  return {
+    overlapStartDate: startDate > reservation.startDate ? startDate : reservation.startDate,
+    overlapEndDate: endDate < reservation.endDate ? endDate : reservation.endDate
+  };
 }
 
 export function hasDateConflict(
@@ -18,10 +27,13 @@ export function hasDateConflict(
   endDate: string,
   ignoreReservationId?: string,
   bookingUserId?: string,
-  requestedSharedWithUserIds: string[] = []
+  requestedSharedWithUserIds: string[] = [],
+  requestedShareRangeStartDate?: string,
+  requestedShareRangeEndDate?: string
 ): boolean {
   const start = parseISO(startDate);
   const end = parseISO(endDate);
+  const requestedSet = new Set(requestedSharedWithUserIds);
 
   return reservations.some((reservation) => {
     if (ignoreReservationId && reservation.id === ignoreReservationId) {
@@ -31,11 +43,29 @@ export function hasDateConflict(
     const bookedStart = parseISO(reservation.startDate);
     const bookedEnd = parseISO(reservation.endDate);
 
-    if (bookingUserId && canShareOverlap(reservation, bookingUserId, requestedSharedWithUserIds)) {
+    const hasOverlap = start <= bookedEnd && end >= bookedStart;
+    if (!hasOverlap) {
       return false;
     }
 
-    return start <= bookedEnd && end >= bookedStart;
+    if (bookingUserId) {
+      const { overlapStartDate, overlapEndDate } = getOverlapBounds(startDate, endDate, reservation);
+      const existingSet = new Set(reservation.sharedWithUserIds ?? []);
+
+      const allowedByRequestedShare =
+        requestedSet.has(reservation.userId) &&
+        overlapWithinShareRange(overlapStartDate, overlapEndDate, requestedShareRangeStartDate, requestedShareRangeEndDate);
+
+      const allowedByExistingShare =
+        existingSet.has(bookingUserId) &&
+        overlapWithinShareRange(overlapStartDate, overlapEndDate, reservation.sharedRangeStartDate, reservation.sharedRangeEndDate);
+
+      if (allowedByRequestedShare || allowedByExistingShare) {
+        return false;
+      }
+    }
+
+    return true;
   });
 }
 

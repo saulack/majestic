@@ -6,6 +6,8 @@ export type ReservationStatus = "pending" | "approved" | "declined";
 export type FeatureRequestStatus = "pending" | "in_progress" | "declined" | "completed" | "rejected";
 export type FeatureRequestType = "feature" | "bug";
 
+export type InAppNotificationType = "feature_status" | "reservation_invite" | "request_boost";
+
 export type UserProfile = {
   id: string;
   fullName: string;
@@ -19,6 +21,8 @@ export type Reservation = {
   userId: string;
   userName: string;
   sharedWithUserIds?: string[];
+  sharedRangeStartDate?: string;
+  sharedRangeEndDate?: string;
   createdByUserId?: string;
   createdByName?: string;
   startDate: string;
@@ -37,6 +41,8 @@ export type NotificationPreference = {
   channels: ChannelPreference[];
   reservationConfirmationEmail: boolean;
   reservationBookedByOtherEmail: boolean;
+  inAppInboxDigestEmail: boolean;
+  inAppInboxDigestLastSentAt?: string;
 };
 
 export type FeatureRequest = {
@@ -56,6 +62,17 @@ export type FeatureRequest = {
   updatedAt: string;
   voteCount?: number;
   votedByCurrentUser?: boolean;
+};
+
+export type InAppNotification = {
+  id: string;
+  type: InAppNotificationType;
+  title: string;
+  body: string;
+  createdAt: string;
+  href?: string;
+  isRead: boolean;
+  readAt?: string;
 };
 
 export type MaintenanceType = {

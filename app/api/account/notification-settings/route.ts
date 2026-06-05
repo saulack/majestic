@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 type NotificationSettingsInput = {
   reservationConfirmationEmail?: boolean;
   reservationBookedByOtherEmail?: boolean;
+  inAppInboxDigestEmail?: boolean;
 };
 
 export async function POST(request: Request) {
@@ -21,12 +22,14 @@ export async function POST(request: Request) {
   const body = (await request.json()) as NotificationSettingsInput;
   const reservationConfirmationEmail = Boolean(body.reservationConfirmationEmail);
   const reservationBookedByOtherEmail = Boolean(body.reservationBookedByOtherEmail);
+  const inAppInboxDigestEmail = Boolean(body.inAppInboxDigestEmail);
 
   const { error } = await admin.from("notification_preferences").upsert(
     {
       user_id: auth.userId,
       reservation_confirmation_email: reservationConfirmationEmail,
       reservation_booked_by_other_email: reservationBookedByOtherEmail,
+      in_app_inbox_digest_email: inAppInboxDigestEmail,
       updated_at: new Date().toISOString()
     },
     { onConflict: "user_id" }
@@ -40,6 +43,7 @@ export async function POST(request: Request) {
     mode: "live",
     message: "Notification preferences saved.",
     reservationConfirmationEmail,
-    reservationBookedByOtherEmail
+    reservationBookedByOtherEmail,
+    inAppInboxDigestEmail
   });
 }

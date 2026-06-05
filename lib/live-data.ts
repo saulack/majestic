@@ -2,6 +2,7 @@ import { buildMaintenanceSummaries } from "@/lib/maintenance";
 import type {
   FeatureRequest,
   FeatureRequestType,
+  InAppNotification,
   MaintenanceThresholdApproval,
   MaintenanceNotification,
   MaintenanceRecord,
@@ -134,7 +135,7 @@ export async function getNotificationPreference(userId: string): Promise<Notific
 
   const { data, error } = await supabase
     .from("notification_preferences")
-    .select("email_enabled,sms_enabled,reservation_confirmation_email,reservation_booked_by_other_email")
+    .select("email_enabled,sms_enabled,reservation_confirmation_email,reservation_booked_by_other_email,in_app_inbox_digest_email,in_app_inbox_digest_last_sent_at")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -147,7 +148,8 @@ export async function getNotificationPreference(userId: string): Promise<Notific
       userId,
       channels: [],
       reservationConfirmationEmail: false,
-      reservationBookedByOtherEmail: false
+      reservationBookedByOtherEmail: false,
+      inAppInboxDigestEmail: false
     };
   }
 
@@ -165,7 +167,9 @@ export async function getNotificationPreference(userId: string): Promise<Notific
     userId,
     channels,
     reservationConfirmationEmail: Boolean(data.reservation_confirmation_email),
-    reservationBookedByOtherEmail: Boolean(data.reservation_booked_by_other_email)
+    reservationBookedByOtherEmail: Boolean(data.reservation_booked_by_other_email),
+    inAppInboxDigestEmail: Boolean(data.in_app_inbox_digest_email),
+    inAppInboxDigestLastSentAt: (data.in_app_inbox_digest_last_sent_at as string | null) ?? undefined
   };
 }
 
@@ -183,6 +187,8 @@ export async function getAllReservations(): Promise<Reservation[]> {
       start_date,
       end_date,
       shared_with_user_ids,
+      shared_range_start_date,
+      shared_range_end_date,
       notes,
       status,
       decline_reason,
@@ -205,6 +211,8 @@ export async function getAllReservations(): Promise<Reservation[]> {
     userId: row.user_id as string,
     userName: ((row.owner as unknown as { full_name: string } | null)?.full_name) ?? "Unknown",
     sharedWithUserIds: (row.shared_with_user_ids as string[] | null) ?? [],
+    sharedRangeStartDate: (row.shared_range_start_date as string | null) ?? undefined,
+    sharedRangeEndDate: (row.shared_range_end_date as string | null) ?? undefined,
     createdByUserId: (row.created_by as string | null) ?? undefined,
     createdByName: ((row.creator as unknown as { full_name: string } | null)?.full_name) ?? undefined,
     startDate: row.start_date as string,
@@ -233,6 +241,8 @@ export async function getReservationsForUser(userId: string): Promise<Reservatio
       start_date,
       end_date,
       shared_with_user_ids,
+      shared_range_start_date,
+      shared_range_end_date,
       notes,
       status,
       decline_reason,
@@ -256,6 +266,8 @@ export async function getReservationsForUser(userId: string): Promise<Reservatio
     userId: row.user_id as string,
     userName: ((row.owner as unknown as { full_name: string } | null)?.full_name) ?? "Unknown",
     sharedWithUserIds: (row.shared_with_user_ids as string[] | null) ?? [],
+    sharedRangeStartDate: (row.shared_range_start_date as string | null) ?? undefined,
+    sharedRangeEndDate: (row.shared_range_end_date as string | null) ?? undefined,
     createdByUserId: (row.created_by as string | null) ?? undefined,
     createdByName: ((row.creator as unknown as { full_name: string } | null)?.full_name) ?? undefined,
     startDate: row.start_date as string,
@@ -788,6 +800,144 @@ export async function getMaintenanceNotifications(): Promise<MaintenanceNotifica
 export async function getMaintenanceSummaries(): Promise<MaintenanceSummary[]> {
   const [maintenanceTypes, maintenanceRecords] = await Promise.all([getMaintenanceTypes(), getMaintenanceRecords()]);
   return buildMaintenanceSummaries(maintenanceTypes, maintenanceRecords);
+}
+
+export async function getInAppNotificationsForUser(userId: string): Promise<InAppNotification[]> {
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return [];
+  }
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return [];
+  }
+
+  const admin = createAdminClient();
+  const client = admin ?? supabase;
+
+  const [featureStatusResult, reservationInviteResult, boostResult, readStateResult] = await Promise.all([
+    client
+      .from("feature_requests")
+      .select("id,title,request_type,status,reviewed_at,updated_at")
+      .eq("requested_by", userId)
+      .in("status", ["in_progress", "declined", "completed", "rejected"]) 
+      .order("updated_at", { ascending: false })
+      .limit(100),
+    client
+      .from("reservations")
+      .select(`
+        id,
+        start_date,
+        end_date,
+        created_at,
+        created_by,
+        creator:profiles!reservations_created_by_fkey(full_name)
+      `)
+      .contains("shared_with_user_ids", [userId])
+      .in("status", ["pending", "approved"])
+      .order("created_at", { ascending: false })
+      .limit(100),
+    client
+      .from("feature_request_votes")
+      .select(`
+        id,
+        created_at,
+        voted_by,
+        feature_request_id,
+        voter:profiles!feature_request_votes_voted_by_fkey(full_name),
+        request:feature_requests!feature_request_votes_feature_request_id_fkey(id,title,request_type,requested_by)
+      `)
+      .order("created_at", { ascending: false })
+      .limit(200),
+    client
+      .from("notification_reads")
+      .select("notification_id,read_at")
+      .eq("user_id", userId)
+  ]);
+
+  const readMap = new Map<string, string>();
+  for (const row of (readStateResult.data ?? []) as Array<{ notification_id: string; read_at: string }>) {
+    if (!row.notification_id) {
+      continue;
+    }
+
+    readMap.set(row.notification_id, row.read_at);
+  }
+
+  const statusToVerb: Record<string, string> = {
+    in_progress: "moved to in progress",
+    declined: "denied",
+    completed: "completed",
+    rejected: "rejected"
+  };
+
+  const featureStatusNotifications: InAppNotification[] = (featureStatusResult.data ?? []).map((entry) => {
+    const status = (entry.status as string) ?? "pending";
+    const typeLabel = (entry.request_type as string) === "bug" ? "bug report" : "feature request";
+    const statusVerb = statusToVerb[status] ?? "updated";
+
+    return {
+      id: `feature-status-${entry.id}-${entry.updated_at}`,
+      type: "feature_status",
+      title: `Your ${typeLabel} was ${statusVerb}`,
+      body: (entry.title as string) ?? "A request you submitted was updated.",
+      createdAt: ((entry.reviewed_at as string | null) ?? (entry.updated_at as string)) ?? new Date().toISOString(),
+      href: "/feature-requests",
+      isRead: false
+    };
+  });
+
+  const reservationInviteNotifications: InAppNotification[] = (reservationInviteResult.data ?? []).map((entry) => {
+    const inviterName = ((entry.creator as unknown as { full_name?: string } | null)?.full_name ?? "Another user").toString();
+    const startDate = (entry.start_date as string) ?? "";
+    const endDate = (entry.end_date as string) ?? "";
+
+    return {
+      id: `reservation-invite-${entry.id}`,
+      type: "reservation_invite",
+      title: "You have been invited to a reservation",
+      body: `${inviterName} invited you for ${startDate} to ${endDate}.`,
+      createdAt: (entry.created_at as string) ?? new Date().toISOString(),
+      href: "/reservations",
+      isRead: false
+    };
+  });
+
+  const requestBoostNotifications: InAppNotification[] = (boostResult.data ?? [])
+    .filter((entry) => {
+      const request = entry.request as unknown as { requested_by?: string } | null;
+      return request?.requested_by === userId && (entry.voted_by as string) !== userId;
+    })
+    .map((entry) => {
+      const request = entry.request as unknown as { title?: string; request_type?: string } | null;
+      const voterName = ((entry.voter as unknown as { full_name?: string } | null)?.full_name ?? "A user").toString();
+      const typeLabel = request?.request_type === "bug" ? "bug report" : "request";
+
+      return {
+        id: `request-boost-${entry.id}`,
+        type: "request_boost",
+        title: `${voterName} boosted your ${typeLabel}`,
+        body: request?.title ?? "One of your requests received a boost.",
+        createdAt: (entry.created_at as string) ?? new Date().toISOString(),
+        href: "/feature-requests",
+        isRead: false
+      };
+    });
+
+  return [...featureStatusNotifications, ...reservationInviteNotifications, ...requestBoostNotifications]
+    .map((notification) => {
+      const readAt = readMap.get(notification.id);
+      return {
+        ...notification,
+        isRead: Boolean(readAt),
+        readAt: readAt ?? undefined
+      };
+    })
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
 export async function getPendingMaintenanceThresholdApprovals(): Promise<MaintenanceThresholdApproval[]> {
