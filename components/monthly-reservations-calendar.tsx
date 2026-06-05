@@ -742,7 +742,7 @@ export function MonthlyReservationsCalendar({
 
             const bookedCellCls =
               isDoubleBookableDay
-                ? "border-[#49a38f] bg-[linear-gradient(135deg,#62bea9_0%,#62bea9_49%,#e5e7eb_50%,#e5e7eb_100%)] text-slate-500 dark:border-emerald-300 dark:bg-[linear-gradient(135deg,#10b981_0%,#10b981_49%,#334155_50%,#334155_100%)] dark:text-slate-400"
+                ? "border-[#49a38f] bg-[linear-gradient(135deg,#62bea9_0%,#62bea9_49%,rgba(190,190,190,1)_50%,rgba(190,190,190,1)_100%)] text-slate-500 dark:border-emerald-300 dark:bg-[linear-gradient(135deg,#10b981_0%,#10b981_49%,#334155_50%,#334155_100%)] dark:text-slate-400"
               : hasSharedStay
                 ? "border-[#6bbfc7] bg-[linear-gradient(135deg,#e6fbf6_0%,#b8ecdf_38%,#9fd8eb_100%)] text-[#103b44] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-[#4ca8b2] dark:bg-[linear-gradient(135deg,#0f3a42_0%,#146172_38%,#1f4d60_100%)] dark:text-slate-100 dark:shadow-none"
                 : primaryReservation?.status === "declined"
