@@ -2,29 +2,35 @@
 
 import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { AppShell } from "@/components/app-shell";
 import { totalDaysInReservation } from "@/lib/reservation-utils";
 import { isAdminLike } from "@/lib/rbac";
-import type { FeatureRequest, Reservation, UserProfile } from "@/lib/types";
+import type { FeatureRequest, MaintenanceRecord, Reservation, UserProfile } from "@/lib/types";
 
 type Scope = "currentYear" | "allTime";
+
+const MAINTENANCE_PIE_COLORS = ["#0f766e", "#b45309", "#1d4ed8", "#be123c", "#166534", "#7c3aed", "#0369a1", "#c2410c"];
 
 export function StatsClientPage({
   actingUser,
   reservations,
   requests,
+  maintenanceRecords,
   users,
   previewRole
 }: {
   actingUser: UserProfile;
   reservations: Reservation[];
   requests: FeatureRequest[];
+  maintenanceRecords: MaintenanceRecord[];
   users: UserProfile[];
   previewRole: Extract<UserProfile["role"], "admin" | "user"> | null;
 }) {
   const [scope, setScope] = useState<Scope>("currentYear");
   const currentYear = new Date().getFullYear();
   const adminLike = isAdminLike(actingUser);
+  const isSuperadmin = actingUser.role === "superadmin";
 
   const filteredReservations = useMemo(() => {
     const base = adminLike ? reservations : reservations.filter((reservation) => reservation.userId === actingUser.id);
@@ -45,6 +51,16 @@ export function StatsClientPage({
 
     return base.filter((request) => parseISO(request.createdAt).getFullYear() === currentYear);
   }, [actingUser.id, adminLike, currentYear, requests, scope]);
+
+  const filteredMaintenanceRecords = useMemo(() => {
+    const base = adminLike ? maintenanceRecords : maintenanceRecords.filter((record) => record.createdByUserId === actingUser.id);
+
+    if (scope === "allTime") {
+      return base;
+    }
+
+    return base.filter((record) => parseISO(record.createdAt).getFullYear() === currentYear);
+  }, [actingUser.id, adminLike, currentYear, maintenanceRecords, scope]);
 
   const canceledReservations = filteredReservations.filter((reservation) => reservation.status === "declined");
   const reservedDays = filteredReservations
@@ -80,6 +96,59 @@ export function StatsClientPage({
     ]
   );
   const maxMetricValue = useMemo(() => Math.max(...metricRows.map((entry) => entry.value), 1), [metricRows]);
+
+  const maintenanceByTypeRows = useMemo(() => {
+    const typeCounts = new Map<string, number>();
+
+    for (const record of filteredMaintenanceRecords) {
+      typeCounts.set(record.typeName, (typeCounts.get(record.typeName) ?? 0) + 1);
+    }
+
+    return [...typeCounts.entries()]
+      .map(([typeName, count]) => ({ typeName, count }))
+      .sort((a, b) => b.count - a.count || a.typeName.localeCompare(b.typeName));
+  }, [filteredMaintenanceRecords]);
+
+  const maxMaintenanceTypeCount = useMemo(
+    () => Math.max(...maintenanceByTypeRows.map((entry) => entry.count), 1),
+    [maintenanceByTypeRows]
+  );
+
+  const maintenanceShareByType = useMemo(() => {
+    if (!isSuperadmin) {
+      return [];
+    }
+
+    const userNameById = new Map(users.map((user) => [user.id, user.fullName]));
+    const byType = new Map<string, Map<string, number>>();
+
+    for (const record of filteredMaintenanceRecords) {
+      const typeBucket = byType.get(record.typeName) ?? new Map<string, number>();
+      typeBucket.set(record.createdByUserId, (typeBucket.get(record.createdByUserId) ?? 0) + 1);
+      byType.set(record.typeName, typeBucket);
+    }
+
+    return [...byType.entries()]
+      .map(([typeName, userCounts]) => {
+        const total = [...userCounts.values()].reduce((sum, count) => sum + count, 0);
+        const slices = [...userCounts.entries()]
+          .map(([userId, count], index) => ({
+            userId,
+            name: userNameById.get(userId) ?? "Unknown",
+            count,
+            percentage: total > 0 ? Number(((count / total) * 100).toFixed(1)) : 0,
+            color: MAINTENANCE_PIE_COLORS[index % MAINTENANCE_PIE_COLORS.length]
+          }))
+          .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+        return {
+          typeName,
+          total,
+          slices
+        };
+      })
+      .sort((a, b) => b.total - a.total || a.typeName.localeCompare(b.typeName));
+  }, [filteredMaintenanceRecords, isSuperadmin, users]);
 
   const perUserRows = useMemo(() => {
     if (!adminLike) {
@@ -207,6 +276,89 @@ export function StatsClientPage({
           </div>
         </div>
 
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+          <h3 className="text-base font-semibold">
+            Maintenance by type ({scope === "currentYear" ? String(currentYear) : "all time"})
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            {adminLike
+              ? "How many maintenance logs exist by type in the selected scope."
+              : "How many times you logged each maintenance type in the selected scope."}
+          </p>
+
+          {maintenanceByTypeRows.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-500">No maintenance activity found for this period.</p>
+          ) : (
+            <div className="mt-4 grid gap-3">
+              {maintenanceByTypeRows.map((row) => (
+                <div key={row.typeName} className="grid gap-1.5">
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="font-medium text-slate-700">{row.typeName}</span>
+                    <span className="text-slate-600">{row.count}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-slate-100">
+                    <div
+                      className="h-2 rounded-full bg-amber-700"
+                      style={{ width: `${Math.max(8, (row.count / maxMaintenanceTypeCount) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {isSuperadmin ? (
+          <div className="mt-6">
+            <h3 className="text-base font-semibold">
+              Maintenance contribution by user ({scope === "currentYear" ? String(currentYear) : "all time"})
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              For each maintenance type, the pie chart shows each user&apos;s percentage of completions. Hover slices to see exact counts.
+            </p>
+
+            {maintenanceShareByType.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">No maintenance contribution data found for this period.</p>
+            ) : (
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                {maintenanceShareByType.map((typeRow) => (
+                  <div key={typeRow.typeName} className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="text-sm font-semibold text-slate-800">{typeRow.typeName}</h4>
+                      <span className="text-xs text-slate-500">Total: {typeRow.total}</span>
+                    </div>
+
+                    <div className="mt-3 h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={typeRow.slices} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={92} innerRadius={46}>
+                            {typeRow.slices.map((slice) => (
+                              <Cell key={`${typeRow.typeName}-${slice.userId}`} fill={slice.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip content={<MaintenancePieTooltip />} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div className="mt-2 grid gap-1.5">
+                      {typeRow.slices.map((slice) => (
+                        <div key={`${typeRow.typeName}-legend-${slice.userId}`} className="flex items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: slice.color }} />
+                            <span className="text-slate-700">{slice.name}</span>
+                          </div>
+                          <span className="text-slate-500">{slice.percentage}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
+
         {adminLike ? (
           <div className="mt-6">
             <h3 className="mb-3 text-base font-semibold">
@@ -298,6 +450,25 @@ export function StatsClientPage({
         )}
       </section>
     </AppShell>
+  );
+}
+
+function MaintenancePieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: { name: string; count: number; percentage: number } }> }) {
+  if (!active || !payload || payload.length === 0) {
+    return null;
+  }
+
+  const current = payload[0]?.payload;
+  if (!current) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-sm">
+      <p className="font-semibold text-slate-800">{current.name}</p>
+      <p className="mt-1 text-slate-600">{current.percentage}%</p>
+      <p className="text-slate-600">{current.count} time{current.count === 1 ? "" : "s"}</p>
+    </div>
   );
 }
 
