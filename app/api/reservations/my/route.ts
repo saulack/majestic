@@ -9,6 +9,10 @@ type UpdateReservationInput = {
   startDate?: string;
   endDate?: string;
   notes?: string;
+  allowDoubleBooking?: boolean;
+  sharedWithUserIds?: string[];
+  sharedRangeStartDate?: string;
+  sharedRangeEndDate?: string;
 };
 
 type DeleteReservationInput = {
@@ -32,6 +36,7 @@ export async function PATCH(request: Request) {
   const startDate = body.startDate?.trim() ?? "";
   const endDate = body.endDate?.trim() ?? "";
   const notes = body.notes?.trim() ?? "";
+  const allowDoubleBooking = body.allowDoubleBooking === true;
 
   if (!reservationId || !startDate || !endDate) {
     return NextResponse.json({ error: "Reservation id, start date, and end date are required." }, { status: 400 });
@@ -39,6 +44,32 @@ export async function PATCH(request: Request) {
 
   if (endDate < startDate) {
     return NextResponse.json({ error: "End date must be on or after start date." }, { status: 400 });
+  }
+
+  const requestedSharedWithUserIds = allowDoubleBooking
+    ? Array.from(new Set((body.sharedWithUserIds ?? []).map((id) => id.trim()).filter((id) => id && id !== auth.userId)))
+    : [];
+  const requestedSharedRangeStartDate = allowDoubleBooking ? body.sharedRangeStartDate?.trim() || undefined : undefined;
+  const requestedSharedRangeEndDate = allowDoubleBooking ? body.sharedRangeEndDate?.trim() || undefined : undefined;
+
+  if (allowDoubleBooking && requestedSharedWithUserIds.length === 0) {
+    return NextResponse.json({ error: "Select at least one user to allow overlap." }, { status: 400 });
+  }
+
+  if (allowDoubleBooking) {
+    if ((requestedSharedRangeStartDate && !requestedSharedRangeEndDate) || (!requestedSharedRangeStartDate && requestedSharedRangeEndDate)) {
+      return NextResponse.json({ error: "Select both sharable range dates or use whole reservation." }, { status: 400 });
+    }
+
+    if (requestedSharedRangeStartDate && requestedSharedRangeEndDate) {
+      if (requestedSharedRangeEndDate < requestedSharedRangeStartDate) {
+        return NextResponse.json({ error: "Sharable range end date must be on or after start date." }, { status: 400 });
+      }
+
+      if (requestedSharedRangeStartDate < startDate || requestedSharedRangeEndDate > endDate) {
+        return NextResponse.json({ error: "Sharable range must stay within reservation dates." }, { status: 400 });
+      }
+    }
   }
 
   const { data: existingReservation, error: existingError } = await admin
@@ -76,10 +107,6 @@ export async function PATCH(request: Request) {
     createdAt: new Date().toISOString()
   }));
 
-  const requestedSharedWithUserIds = (existingReservation.shared_with_user_ids as string[] | null) ?? [];
-  const requestedSharedRangeStartDate = (existingReservation.shared_range_start_date as string | null) ?? undefined;
-  const requestedSharedRangeEndDate = (existingReservation.shared_range_end_date as string | null) ?? undefined;
-
   const hasDisallowedConflict = hasDateConflict(
     conflictRows,
     startDate,
@@ -100,11 +127,14 @@ export async function PATCH(request: Request) {
     .update({
       start_date: startDate,
       end_date: endDate,
-      notes: notes || null
+      notes: notes || null,
+      shared_with_user_ids: allowDoubleBooking ? requestedSharedWithUserIds : [],
+      shared_range_start_date: allowDoubleBooking ? requestedSharedRangeStartDate ?? null : null,
+      shared_range_end_date: allowDoubleBooking ? requestedSharedRangeEndDate ?? null : null
     })
     .eq("id", reservationId)
     .eq("user_id", auth.userId)
-    .select("id,user_id,start_date,end_date,notes,status,decline_reason,created_at")
+    .select("id,user_id,start_date,end_date,notes,shared_with_user_ids,shared_range_start_date,shared_range_end_date,status,decline_reason,created_at")
     .single();
 
   if (error || !data) {
@@ -120,6 +150,9 @@ export async function PATCH(request: Request) {
       startDate: data.start_date,
       endDate: data.end_date,
       notes: data.notes ?? undefined,
+      sharedWithUserIds: (data.shared_with_user_ids as string[] | null) ?? [],
+      sharedRangeStartDate: (data.shared_range_start_date as string | null) ?? undefined,
+      sharedRangeEndDate: (data.shared_range_end_date as string | null) ?? undefined,
       status: data.status,
       declineReason: data.decline_reason ?? undefined,
       createdAt: data.created_at

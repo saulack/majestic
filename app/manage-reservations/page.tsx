@@ -21,10 +21,11 @@ export default async function ManageReservationsPage() {
   ]);
 
   const userNameById = Object.fromEntries(profiles.map((entry) => [entry.id, entry.fullName]));
+  const userOptions = profiles.map((entry) => ({ id: entry.id, fullName: entry.fullName }));
 
   return (
     <AppShell initialRole={actingUser.role} initialPreviewRole={previewRole}>
-      <ManageReservationsClient initialReservations={reservations} userNameById={userNameById} />
+      <ManageReservationsClient initialReservations={reservations} userNameById={userNameById} userOptions={userOptions} />
     </AppShell>
   );
 }

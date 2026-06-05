@@ -52,7 +52,7 @@ function buildLogEntries(
     if (approvalsEnabled && (reservation.status === "approved" || reservation.status === "declined") && reservation.reviewedAt) {
       entries.push({
         id: `${reservation.id}-${reservation.status}`,
-        type: reservation.status === "declined" && reservation.declineReason === "Canceled by user" ? "canceled" : reservation.status,
+        type: reservation.status === "declined" ? "canceled" : reservation.status,
         userName: reservation.userName,
         reviewerName: reservation.reviewedByName,
         startDate: reservation.startDate,
@@ -267,7 +267,7 @@ export function ActivityLog({
                         ? `${entry.reviewerName ?? "An admin"} reserved ${entry.userName}'s booking`
                         : isCanceled
                           ? `${entry.userName} canceled this booking`
-                          : `${entry.reviewerName ?? "An admin"} declined ${entry.userName}'s booking`}
+                          : `${entry.reviewerName ?? "An admin"} canceled ${entry.userName}'s booking`}
                     </p>
                     <time className="whitespace-nowrap text-[11px] text-slate-400 sm:text-xs">{formatRelative(entry.timestamp)}</time>
                   </div>

@@ -37,7 +37,7 @@ const weekdayHeaders = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const statusConfig = {
   approved: { label: "Booked", cls: "bg-[#d7f2ea] text-[#1f7d6e]", icon: <CheckCircle2 className="inline h-3 w-3" /> },
-  declined: { label: "Declined", cls: "bg-[#ffe4dc] text-[#c56758]", icon: <XCircle className="inline h-3 w-3" /> },
+  declined: { label: "Canceled", cls: "bg-[#ffe4dc] text-[#c56758]", icon: <XCircle className="inline h-3 w-3" /> },
   pending: { label: "Pending", cls: "bg-[#d9f1f5] text-[#317f8c]", icon: <Clock className="inline h-3 w-3" /> }
 } as const;
 
@@ -68,6 +68,7 @@ export function MonthlyReservationsCalendar({
   const [reservationMode, setReservationMode] = useState<"self" | "other">("self");
   const [selectedUserId, setSelectedUserId] = useState(actingUser.id);
   const [allowDoubleBooking, setAllowDoubleBooking] = useState(false);
+  const [isOverlapUsersSubmenuOpen, setIsOverlapUsersSubmenuOpen] = useState(true);
   const [shareScope, setShareScope] = useState<"whole" | "range">("whole");
   const [sharedWithUserIds, setSharedWithUserIds] = useState<string[]>([]);
   const [sharedRangeStartDate, setSharedRangeStartDate] = useState("");
@@ -376,7 +377,7 @@ export function MonthlyReservationsCalendar({
       if (result.error) {
         setFormMessage({ type: "error", text: result.error });
       } else {
-        setFormMessage({ type: "success", text: "Reservation declined." });
+        setFormMessage({ type: "success", text: "Reservation canceled." });
         setDeclineTargetId(null);
         setDeclineReasonText("");
       }
@@ -445,24 +446,27 @@ export function MonthlyReservationsCalendar({
           ) : null}
 
           {reservationMode === "other" ? (
-            <label className="grid gap-1.5 font-medium sm:col-span-2">
-              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Choose user</span>
-              <select
-                value={selectedUserId}
-                onChange={(event) => {
-                  const nextUserId = event.target.value;
-                  setSelectedUserId(nextUserId);
-                  setSharedWithUserIds((current) => current.filter((id) => id !== nextUserId));
-                }}
-                className="rounded-lg border border-slate-300 px-3 py-2"
-              >
-                {otherUsers.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.fullName}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="ml-3 grid gap-2 border-l-2 border-slate-200 pl-3 sm:col-span-2 sm:ml-4 sm:pl-4">
+              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Booking target</span>
+              <label className="grid gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 font-medium">
+                <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Choose user</span>
+                <select
+                  value={selectedUserId}
+                  onChange={(event) => {
+                    const nextUserId = event.target.value;
+                    setSelectedUserId(nextUserId);
+                    setSharedWithUserIds((current) => current.filter((id) => id !== nextUserId));
+                  }}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+                >
+                  {otherUsers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.fullName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
           ) : null}
 
           <div className="grid gap-1.5 sm:col-span-2">
@@ -477,6 +481,7 @@ export function MonthlyReservationsCalendar({
                 onCheckedChange={(checked) => {
                   setAllowDoubleBooking(checked);
                   if (!checked) {
+                    setIsOverlapUsersSubmenuOpen(true);
                     setShareScope("whole");
                     setSharedWithUserIds([]);
                     setSharedRangeStartDate("");
@@ -492,92 +497,112 @@ export function MonthlyReservationsCalendar({
 
           {allowDoubleBooking ? (
             <div className="grid gap-2 sm:col-span-2">
-              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable scope</span>
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">
-                    {shareScope === "whole" ? "Whole reservation is sharable" : "Only selected date range is sharable"}
-                  </p>
-                  <p className="text-sm text-slate-500">Choose whether invite-based overlap works for every date or only part of the stay.</p>
-                </div>
-                <ToggleSwitch
-                  checked={shareScope === "range"}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setShareScope("range");
-                      setSharedRangeStartDate((current) => current || startDate);
-                      setSharedRangeEndDate((current) => current || endDate);
-                      return;
-                    }
-
-                    setShareScope("whole");
-                    setSharedRangeStartDate("");
-                    setSharedRangeEndDate("");
-                  }}
-                  srLabel="Toggle sharable scope"
-                  offLabel="Whole"
-                  onLabel="Range"
-                />
-              </div>
-
-              {shareScope === "range" ? (
-                <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 sm:grid-cols-2">
-                  <label className="grid gap-1 text-sm font-medium">
-                    <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable start</span>
-                    <input
-                      type="date"
-                      value={sharedRangeStartDate}
-                      min={startDate || undefined}
-                      max={endDate || undefined}
-                      onChange={(event) => setSharedRangeStartDate(event.target.value)}
-                      className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-                    />
-                  </label>
-                  <label className="grid gap-1 text-sm font-medium">
-                    <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable end</span>
-                    <input
-                      type="date"
-                      value={sharedRangeEndDate}
-                      min={startDate || undefined}
-                      max={endDate || undefined}
-                      onChange={(event) => setSharedRangeEndDate(event.target.value)}
-                      className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-                    />
-                  </label>
-                </div>
-              ) : null}
-
-              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Allowed overlap users</span>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                {shareableUsers.length === 0 ? (
-                  <p className="text-sm text-slate-500">No other users available for shared overlap.</p>
-                ) : (
-                  <div className="grid gap-2">
-                    {shareableUsers.map((user) => (
-                      <label key={user.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
-                        <div>
-                          <p className="text-sm font-medium text-slate-800">{user.fullName}</p>
-                          <p className="text-xs text-slate-500">Allow this user to overlap with this reservation.</p>
-                        </div>
-                        <ToggleSwitch
-                          checked={sharedWithUserIds.includes(user.id)}
-                          onCheckedChange={(checked) => {
-                            setSharedWithUserIds((current) => {
-                              if (checked) {
-                                return current.includes(user.id) ? current : [...current, user.id];
-                              }
-
-                              return current.filter((entry) => entry !== user.id);
-                            });
-                          }}
-                          srLabel={`Allow overlap for ${user.fullName}`}
-                          offLabel="No"
-                          onLabel="Yes"
-                        />
-                      </label>
-                    ))}
+              <div className="ml-3 grid gap-2 border-l-2 border-slate-200 pl-3 sm:ml-4 sm:pl-4">
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Allowed overlap users</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsOverlapUsersSubmenuOpen((current) => !current)}
+                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+                    >
+                      {isOverlapUsersSubmenuOpen ? "Collapse" : "Expand"}
+                    </button>
                   </div>
-                )}
+                  {isOverlapUsersSubmenuOpen ? (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+                      {shareableUsers.length === 0 ? (
+                        <p className="text-sm text-slate-500">No other users available for shared overlap.</p>
+                      ) : (
+                        <div className="grid gap-2">
+                          {shareableUsers.map((user) => (
+                            <label key={user.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                              <div>
+                                <p className="text-sm font-medium text-slate-800">{user.fullName}</p>
+                                <p className="text-xs text-slate-500">Allow this user to overlap with this reservation.</p>
+                              </div>
+                              <ToggleSwitch
+                                checked={sharedWithUserIds.includes(user.id)}
+                                onCheckedChange={(checked) => {
+                                  setSharedWithUserIds((current) => {
+                                    if (checked) {
+                                      return current.includes(user.id) ? current : [...current, user.id];
+                                    }
+
+                                    return current.filter((entry) => entry !== user.id);
+                                  });
+                                }}
+                                srLabel={`Allow overlap for ${user.fullName}`}
+                                offLabel="No"
+                                onLabel="Yes"
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-2">
+                  <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Shareable scope</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-800 sm:text-sm">
+                        {shareScope === "whole" ? "Whole reservation is sharable" : "Only selected date range is sharable"}
+                      </p>
+                      <p className="text-xs text-slate-500">Choose whether overlap works for all dates or a subset.</p>
+                    </div>
+                    <ToggleSwitch
+                      checked={shareScope === "range"}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setShareScope("range");
+                          setSharedRangeStartDate((current) => current || startDate);
+                          setSharedRangeEndDate((current) => current || endDate);
+                          return;
+                        }
+
+                        setShareScope("whole");
+                        setSharedRangeStartDate("");
+                        setSharedRangeEndDate("");
+                      }}
+                      srLabel="Toggle sharable scope"
+                      offLabel="Whole"
+                      onLabel="Range"
+                    />
+                  </div>
+
+                  {shareScope === "range" ? (
+                    <div className="ml-3 grid gap-2 border-l-2 border-slate-200 pl-3 sm:ml-4 sm:pl-4">
+                      <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable date range</span>
+                      <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 sm:grid-cols-2">
+                        <label className="grid gap-1 text-xs font-medium sm:text-sm">
+                          <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable start</span>
+                          <input
+                            type="date"
+                            value={sharedRangeStartDate}
+                            min={startDate || undefined}
+                            max={endDate || undefined}
+                            onChange={(event) => setSharedRangeStartDate(event.target.value)}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+                          />
+                        </label>
+                        <label className="grid gap-1 text-xs font-medium sm:text-sm">
+                          <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable end</span>
+                          <input
+                            type="date"
+                            value={sharedRangeEndDate}
+                            min={startDate || undefined}
+                            max={endDate || undefined}
+                            onChange={(event) => setSharedRangeEndDate(event.target.value)}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           ) : null}
@@ -692,27 +717,33 @@ export function MonthlyReservationsCalendar({
           {calendarDays.map((day) => {
             const dayKey = format(day, "yyyy-MM-dd");
             const reservationsOnDay = reservations.filter((reservation) => dayKey >= reservation.startDate && dayKey <= reservation.endDate);
+            const activeReservationsOnDay = reservationsOnDay.filter(
+              (reservation) => reservation.status === "approved" || reservation.status === "pending"
+            );
             const holidays = holidayMap[dayKey] ?? [];
             const isSelected = activeStart && activeEnd ? dayKey >= activeStart && dayKey <= activeEnd : false;
             const primaryReservation =
-              reservationsOnDay.find((reservation) => reservation.status === "approved") ??
-              reservationsOnDay.find((reservation) => reservation.status === "pending") ??
-              reservationsOnDay[0];
-            const hasSharedStay = reservationsOnDay.length > 1;
+              activeReservationsOnDay.find((reservation) => reservation.status === "approved") ??
+              activeReservationsOnDay.find((reservation) => reservation.status === "pending") ??
+              activeReservationsOnDay[0];
+            const hasSharedStay = activeReservationsOnDay.length > 1;
             const isBookedCell = Boolean(primaryReservation);
             const isOwnReservation = primaryReservation?.userId === actingUser.id;
             const isWithinExistingShareRange = !primaryReservation?.sharedRangeStartDate || !primaryReservation?.sharedRangeEndDate
               ? true
               : dayKey >= primaryReservation.sharedRangeStartDate && dayKey <= primaryReservation.sharedRangeEndDate;
-            const canOverlapThisReservation =
-              !isOwnReservation &&
-              Boolean(primaryReservation?.sharedWithUserIds?.includes(actingUser.id)) &&
-              isWithinExistingShareRange;
-            const sharedStayGuests = reservationsOnDay.slice(0, 2);
-            const extraSharedStayCount = Math.max(reservationsOnDay.length - sharedStayGuests.length, 0);
+            const canOverlapThisReservation = Boolean(primaryReservation?.sharedWithUserIds?.includes(actingUser.id)) && isWithinExistingShareRange;
+            const isDoubleBookableDay =
+              Boolean(primaryReservation?.sharedWithUserIds?.length) &&
+              isWithinExistingShareRange &&
+              (Boolean(isOwnReservation) || canOverlapThisReservation);
+            const sharedStayGuests = activeReservationsOnDay.slice(0, 2);
+            const extraSharedStayCount = Math.max(activeReservationsOnDay.length - sharedStayGuests.length, 0);
 
             const bookedCellCls =
-              hasSharedStay
+              isDoubleBookableDay
+                ? "border-[#49a38f] bg-[linear-gradient(135deg,#62bea9_0%,#62bea9_49%,#e5e7eb_50%,#e5e7eb_100%)] text-slate-500 dark:border-emerald-300 dark:bg-[linear-gradient(135deg,#10b981_0%,#10b981_49%,#334155_50%,#334155_100%)] dark:text-slate-400"
+              : hasSharedStay
                 ? "border-[#6bbfc7] bg-[linear-gradient(135deg,#e6fbf6_0%,#b8ecdf_38%,#9fd8eb_100%)] text-[#103b44] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] dark:border-[#4ca8b2] dark:bg-[linear-gradient(135deg,#0f3a42_0%,#146172_38%,#1f4d60_100%)] dark:text-slate-100 dark:shadow-none"
                 : primaryReservation?.status === "declined"
                 ? "bg-rose-300 text-rose-900 border-rose-400 dark:bg-rose-900/70 dark:text-rose-100 dark:border-rose-700"
@@ -754,7 +785,7 @@ export function MonthlyReservationsCalendar({
                         ) : null}
                       </div>
                     ) : (
-                      <p className="truncate text-[11px] font-semibold leading-tight">{primaryReservation.userName}</p>
+                      <p className={`truncate text-[11px] font-semibold leading-tight ${isDoubleBookableDay ? "text-slate-900 dark:text-slate-100" : ""}`}>{primaryReservation.userName}</p>
                     )}
                     {hasSharedStay ? (
                       <div className="mt-1 inline-flex items-center rounded-full border border-white/50 bg-white/45 px-1.5 py-0.5 text-[10px] font-medium text-[#245f68]">
@@ -836,7 +867,7 @@ export function MonthlyReservationsCalendar({
             {reservations.map((reservation) => {
               const owner = users.find((u) => u.id === reservation.userId) ?? actingUser;
               const canModerate = canModerateReservation(actingUser, owner, reservation);
-              const msg = reservation.status === "approved" ? "Booked" : reservation.status === "declined" ? "Declined" : "Pending";
+              const msg = reservation.status === "approved" ? "Booked" : reservation.status === "declined" ? "Canceled" : "Pending";
 
               return (
                 <article key={reservation.id} className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
@@ -858,7 +889,7 @@ export function MonthlyReservationsCalendar({
 
                     {reservation.status === "declined" && reservation.declineReason ? (
                       <div className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                        <span className="font-semibold">Reason for denial: </span>
+                        <span className="font-semibold">Reason for cancellation: </span>
                         {reservation.declineReason}
                       </div>
                     ) : null}

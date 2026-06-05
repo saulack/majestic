@@ -309,6 +309,11 @@ export function FeatureRequestsClient({ requests, actingUserId }: { requests: Fe
           {unresolvedRequests.length > 0 ? (
             unresolvedRequests.map((request) => (
               <article key={request.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                {(() => {
+                  const isOwnRequest = request.requestedByUserId === actingUserId;
+                  const boostDisabled = Boolean(voteBusyById[request.id]) || Boolean(request.votedByCurrentUser) || isOwnRequest;
+
+                  return (
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -329,20 +334,24 @@ export function FeatureRequestsClient({ requests, actingUserId }: { requests: Fe
                     </div>
                     <button
                       type="button"
-                      disabled={Boolean(voteBusyById[request.id]) || Boolean(request.votedByCurrentUser)}
+                      disabled={boostDisabled}
                       onClick={() => void boostRequest(request.id)}
                       className={[
                         "rounded-lg px-3 py-1.5 text-xs font-medium transition",
-                        request.votedByCurrentUser
+                        isOwnRequest
+                          ? "border border-slate-300 bg-slate-100 text-slate-500"
+                          : request.votedByCurrentUser
                           ? "border border-amber-300 bg-amber-100 text-amber-800"
                           : "border border-amber-700 bg-amber-700 text-white",
                         voteBusyById[request.id] ? "opacity-60" : ""
                       ].join(" ")}
                     >
-                      {request.votedByCurrentUser ? "Boosted" : voteBusyById[request.id] ? "Boosting..." : "Boost"}
+                      {isOwnRequest ? "Your request" : request.votedByCurrentUser ? "Boosted" : voteBusyById[request.id] ? "Boosting..." : "Boost"}
                     </button>
                   </div>
                 </div>
+                  );
+                })()}
               </article>
             ))
           ) : (

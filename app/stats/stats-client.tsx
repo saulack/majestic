@@ -283,7 +283,7 @@ export function StatsClientPage({
                     {reservation.notes ? <p className="mt-0.5 text-xs text-slate-500">{reservation.notes}</p> : null}
                     {reservation.status === "declined" && reservation.declineReason ? (
                       <p className="mt-1 text-xs text-rose-600">
-                        <span className="font-semibold">Canceled/Declined: </span>
+                        <span className="font-semibold">Canceled: </span>
                         {reservation.declineReason}
                       </p>
                     ) : null}

@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
   const { data: requestRow, error: requestError } = await admin
     .from("feature_requests")
-    .select("id,status,title,request_type")
+    .select("id,status,title,request_type,requested_by")
     .eq("id", requestId)
     .single();
 
@@ -36,6 +36,10 @@ export async function POST(request: Request) {
 
   if (requestRow.status !== "pending" && requestRow.status !== "in_progress") {
     return NextResponse.json({ error: "Only unresolved requests can be boosted." }, { status: 400 });
+  }
+
+  if (requestRow.requested_by === auth.userId) {
+    return NextResponse.json({ error: "You cannot boost your own request." }, { status: 400 });
   }
 
   const { data: existingVote, error: voteLookupError } = await admin
