@@ -53,10 +53,6 @@ export default async function HomePage() {
   const myNextStay = myReservations
     .filter((reservation) => compareAsc(parseISO(reservation.startDate), new Date()) >= 0)
     .sort((left, right) => compareAsc(parseISO(left.startDate), parseISO(right.startDate)))[0];
-  const requestMetricLabel = approvalsEnabled ? "Pending requests" : "Reserved";
-  const requestMetricValue = approvalsEnabled
-    ? normalizedReservations.filter((reservation) => reservation.status === "pending").length
-    : normalizedReservations.filter((reservation) => reservation.status === "approved").length;
   const currentRoleMetricValue: AppRole = profile.role === "superadmin" ? profile.role : actingUser.role;
   const notificationCount = notifications.filter((notification) => !notification.isRead).length;
 
@@ -83,8 +79,8 @@ export default async function HomePage() {
             </p>
           </div>
           <div className="grid gap-3 p-5 sm:grid-cols-3 sm:gap-4 sm:p-6">
-            <Metric label={adminLike ? "Visible reservations" : "My reservations"} value={String(adminLike ? reservations.length : myReservations.length)} />
-            <Metric label={adminLike ? requestMetricLabel : "Your next stay"} value={adminLike ? String(requestMetricValue) : myNextStay?.startDate ?? "-"} />
+            <Metric label="My reservations" value={String(myReservations.length)} />
+            <Metric label="Your next stay" value={myNextStay?.startDate ?? "-"} />
             <Metric label="Notifications" value={String(notificationCount)} href="/notifications" />
           </div>
         </div>
@@ -130,22 +126,24 @@ export default async function HomePage() {
 
 function Metric({ label, value, href }: { label: string; value: string; href?: string }) {
   const content = (
-    <>
-      <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500 sm:text-xs sm:tracking-[0.16em]">{label}</p>
-      <p className="mt-2 text-lg font-semibold text-slate-900 sm:text-xl">{value}</p>
-    </>
+    <div className="flex h-full flex-col justify-between gap-3">
+      <p className="min-h-[2.5rem] text-[11px] uppercase tracking-[0.14em] text-slate-500 sm:min-h-[2.75rem] sm:text-xs sm:tracking-[0.16em]">
+        {label}
+      </p>
+      <p className="text-lg font-semibold leading-tight text-slate-900 sm:text-xl">{value}</p>
+    </div>
   );
 
   if (href) {
     return (
-      <Link href={href} className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 transition hover:border-amber-700 hover:bg-amber-50/40 sm:p-4">
+      <Link href={href} className="flex h-full rounded-xl border border-slate-200 bg-slate-50 p-3.5 transition hover:border-amber-700 hover:bg-amber-50/40 sm:p-4">
         {content}
       </Link>
     );
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4">
+    <div className="flex h-full rounded-xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4">
       {content}
     </div>
   );
