@@ -27,17 +27,27 @@ type ApiResult = {
 };
 
 type ManageReservationsClientProps = {
-  initialReservations: Reservation[];
+  initialMyReservations: Reservation[];
+  initialOtherReservations: Reservation[];
+  isSuperadmin: boolean;
   userNameById: Record<string, string>;
   userOptions: Array<{ id: string; fullName: string }>;
 };
 
-export function ManageReservationsClient({ initialReservations, userNameById, userOptions }: ManageReservationsClientProps) {
-  const [reservations, setReservations] = useState<ReservationRow[]>(initialReservations);
+export function ManageReservationsClient({
+  initialMyReservations,
+  initialOtherReservations,
+  isSuperadmin,
+  userNameById,
+  userOptions
+}: ManageReservationsClientProps) {
+  const [myReservations, setMyReservations] = useState<ReservationRow[]>(initialMyReservations);
+  const [otherReservations, setOtherReservations] = useState<ReservationRow[]>(initialOtherReservations);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [isOverlapUsersSubmenuOpen, setIsOverlapUsersSubmenuOpen] = useState(true);
+  const [isOtherReservationsOpen, setIsOtherReservationsOpen] = useState(false);
   const [draft, setDraft] = useState({
     startDate: "",
     endDate: "",
@@ -49,7 +59,8 @@ export function ManageReservationsClient({ initialReservations, userNameById, us
     sharedRangeEndDate: ""
   });
 
-  const sorted = [...reservations].sort((a, b) => b.startDate.localeCompare(a.startDate));
+  const sortedMyReservations = [...myReservations].sort((a, b) => b.startDate.localeCompare(a.startDate));
+  const sortedOtherReservations = [...otherReservations].sort((a, b) => b.startDate.localeCompare(a.startDate));
 
   function getStatusLabel(reservation: ReservationRow) {
     if (reservation.status === "declined" && reservation.declineReason === "Canceled by user") {
@@ -137,7 +148,7 @@ export function ManageReservationsClient({ initialReservations, userNameById, us
       return;
     }
 
-    setReservations((current) =>
+    setMyReservations((current) =>
       current.map((reservation) =>
         reservation.id === reservationId
           ? {
@@ -183,7 +194,7 @@ export function ManageReservationsClient({ initialReservations, userNameById, us
     }
 
     if (payload.reservation) {
-      setReservations((current) =>
+      setMyReservations((current) =>
         current.map((reservation) =>
           reservation.id === reservationId
             ? {
@@ -199,259 +210,338 @@ export function ManageReservationsClient({ initialReservations, userNameById, us
     setStatus(payload.message ?? "Reservation canceled.");
   }
 
-  return (
-    <section className="card p-5 sm:p-6">
-      <h2 className="text-xl sm:text-2xl">Manage Reservations</h2>
-      <p className="mt-2 text-sm text-slate-600">Review your reservations and edit or cancel them from this page.</p>
+  async function deleteOtherReservation(reservation: ReservationRow) {
+    const reservationWindow = `${format(parseISO(reservation.startDate), "MMM d, yyyy")} to ${format(parseISO(reservation.endDate), "MMM d, yyyy")}`;
+    const ownerName = userNameById[reservation.userId] ?? reservation.userName ?? "Unknown user";
+    const confirmed = window.confirm(`Delete ${ownerName}'s reservation for ${reservationWindow}?`);
 
-      {status ? <p className="mt-3 text-sm text-slate-700">{status}</p> : null}
+    if (!confirmed) {
+      return;
+    }
 
-      <div className="mt-5 grid gap-3">
-        {sorted.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">
-            You do not have any reservations yet.
+    setBusy(true);
+    setStatus("");
+
+    const response = await fetch("/api/admin/reservations", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reservationId: reservation.id })
+    });
+
+    const payload = (await response.json()) as ApiResult;
+    setBusy(false);
+
+    if (!response.ok) {
+      setStatus(payload.error ?? "Unable to delete reservation.");
+      return;
+    }
+
+    setOtherReservations((current) => current.filter((entry) => entry.id !== reservation.id));
+    setStatus(payload.message ?? "Reservation deleted.");
+  }
+
+  function renderReservationCard(reservation: ReservationRow, mode: "mine" | "other") {
+    const availableShareUsers = userOptions.filter((user) => user.id !== reservation.userId);
+    const sharedWithNames = (reservation.sharedWithUserIds ?? [])
+      .map((userId) => userNameById[userId])
+      .filter((name): name is string => Boolean(name));
+    const isSharedReservation = sharedWithNames.length > 0;
+    const hasSharedRange = Boolean(reservation.sharedRangeStartDate && reservation.sharedRangeEndDate);
+    const sharedRangeLabel = hasSharedRange
+      ? `${format(parseISO(reservation.sharedRangeStartDate ?? ""), "MMM d, yyyy")} to ${format(parseISO(reservation.sharedRangeEndDate ?? ""), "MMM d, yyyy")}`
+      : "Whole reservation";
+    const ownerName = userNameById[reservation.userId] ?? reservation.userName;
+
+    return (
+      <article key={reservation.id} className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">
+              {format(parseISO(reservation.startDate), "MMM d, yyyy")} to {format(parseISO(reservation.endDate), "MMM d, yyyy")}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">Created {format(parseISO(reservation.createdAt), "MMM d, yyyy")}</p>
+            {mode === "other" ? <p className="mt-1 text-xs font-medium text-slate-700">User: {ownerName}</p> : null}
           </div>
-        ) : (
-          sorted.map((reservation) => {
-            const availableShareUsers = userOptions.filter((user) => user.id !== reservation.userId);
-            const sharedWithNames = (reservation.sharedWithUserIds ?? [])
-              .map((userId) => userNameById[userId])
-              .filter((name): name is string => Boolean(name));
-            const isSharedReservation = sharedWithNames.length > 0;
-            const hasSharedRange = Boolean(reservation.sharedRangeStartDate && reservation.sharedRangeEndDate);
-            const sharedRangeLabel = hasSharedRange
-              ? `${format(parseISO(reservation.sharedRangeStartDate ?? ""), "MMM d, yyyy")} to ${format(parseISO(reservation.sharedRangeEndDate ?? ""), "MMM d, yyyy")}`
-              : "Whole reservation";
+          <span className={statusBadgeClass(reservation.status)}>{getStatusLabel(reservation)}</span>
+        </div>
 
-            return (
-              <article key={reservation.id} className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">
-                      {format(parseISO(reservation.startDate), "MMM d, yyyy")} to {format(parseISO(reservation.endDate), "MMM d, yyyy")}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">Created {format(parseISO(reservation.createdAt), "MMM d, yyyy")}</p>
-                  </div>
-                  <span className={statusBadgeClass(reservation.status)}>{getStatusLabel(reservation)}</span>
+        {mode === "mine" && editingId === reservation.id ? (
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <label className="grid gap-1 text-sm">
+              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Start date</span>
+              <input
+                type="date"
+                value={draft.startDate}
+                onChange={(event) => setDraft((current) => ({ ...current, startDate: event.target.value }))}
+                className="rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">End date</span>
+              <input
+                type="date"
+                value={draft.endDate}
+                onChange={(event) => setDraft((current) => ({ ...current, endDate: event.target.value }))}
+                className="rounded-lg border border-slate-300 px-3 py-2"
+              />
+            </label>
+            <label className="grid gap-1 text-sm sm:col-span-3">
+              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Notes</span>
+              <textarea
+                value={draft.notes}
+                onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))}
+                className="min-h-20 rounded-lg border border-slate-300 px-3 py-2"
+                placeholder="Optional notes"
+              />
+            </label>
+
+            <div className="sm:col-span-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-900">Double booking</p>
+                  <p className="text-xs text-emerald-700">Use the same submenu controls to add or revoke sharing.</p>
                 </div>
+                <ToggleSwitch
+                  srLabel="Allow double booking"
+                  checked={draft.allowDoubleBooking}
+                  onCheckedChange={(checked) => {
+                    setDraft((current) => ({ ...current, allowDoubleBooking: checked }));
+                  }}
+                />
+              </div>
 
-                {editingId === reservation.id ? (
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    <label className="grid gap-1 text-sm">
-                      <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Start date</span>
-                      <input
-                        type="date"
-                        value={draft.startDate}
-                        onChange={(event) => setDraft((current) => ({ ...current, startDate: event.target.value }))}
-                        className="rounded-lg border border-slate-300 px-3 py-2"
-                      />
-                    </label>
-                    <label className="grid gap-1 text-sm">
-                      <span className="text-xs uppercase tracking-[0.12em] text-slate-500">End date</span>
-                      <input
-                        type="date"
-                        value={draft.endDate}
-                        onChange={(event) => setDraft((current) => ({ ...current, endDate: event.target.value }))}
-                        className="rounded-lg border border-slate-300 px-3 py-2"
-                      />
-                    </label>
-                    <label className="grid gap-1 text-sm sm:col-span-3">
-                      <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Notes</span>
-                      <textarea
-                        value={draft.notes}
-                        onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))}
-                        className="min-h-20 rounded-lg border border-slate-300 px-3 py-2"
-                        placeholder="Optional notes"
-                      />
-                    </label>
+              {draft.allowDoubleBooking ? (
+                <div className="mt-3 rounded-lg border border-emerald-200 bg-white/80 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-slate-900">Allowed overlap users</p>
+                    <button
+                      type="button"
+                      onClick={() => setIsOverlapUsersSubmenuOpen((current) => !current)}
+                      className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700"
+                    >
+                      {isOverlapUsersSubmenuOpen ? "Collapse" : "Expand"}
+                    </button>
+                  </div>
 
-                    <div className="sm:col-span-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-emerald-900">Double booking</p>
-                          <p className="text-xs text-emerald-700">Use the same submenu controls to add or revoke sharing.</p>
-                        </div>
-                        <ToggleSwitch
-                          srLabel="Allow double booking"
-                          checked={draft.allowDoubleBooking}
-                          onCheckedChange={(checked) => {
-                            setDraft((current) => ({ ...current, allowDoubleBooking: checked }));
-                          }}
-                        />
-                      </div>
+                  {isOverlapUsersSubmenuOpen ? (
+                    <div className="mt-2 space-y-2 border-l-2 border-emerald-200 pl-3">
+                      {availableShareUsers.length === 0 ? (
+                        <p className="text-xs text-slate-500">No users available to share with.</p>
+                      ) : (
+                        availableShareUsers.map((user) => {
+                          const isChecked = draft.sharedWithUserIds.includes(user.id);
 
-                      {draft.allowDoubleBooking ? (
-                        <div className="mt-3 rounded-lg border border-emerald-200 bg-white/80 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-semibold text-slate-900">Allowed overlap users</p>
-                            <button
-                              type="button"
-                              onClick={() => setIsOverlapUsersSubmenuOpen((current) => !current)}
-                              className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-700"
-                            >
-                              {isOverlapUsersSubmenuOpen ? "Collapse" : "Expand"}
-                            </button>
-                          </div>
-
-                          {isOverlapUsersSubmenuOpen ? (
-                            <div className="mt-2 space-y-2 border-l-2 border-emerald-200 pl-3">
-                              {availableShareUsers.length === 0 ? (
-                                <p className="text-xs text-slate-500">No users available to share with.</p>
-                              ) : (
-                                availableShareUsers.map((user) => {
-                                  const isChecked = draft.sharedWithUserIds.includes(user.id);
-
-                                  return (
-                                    <label key={user.id} className="flex items-center gap-2 text-sm text-slate-700">
-                                      <input
-                                        type="checkbox"
-                                        checked={isChecked}
-                                        onChange={(event) => {
-                                          const checked = event.target.checked;
-                                          setDraft((current) => ({
-                                            ...current,
-                                            sharedWithUserIds: checked
-                                              ? [...current.sharedWithUserIds, user.id]
-                                              : current.sharedWithUserIds.filter((entry) => entry !== user.id)
-                                          }));
-                                        }}
-                                        className="h-4 w-4 rounded border-slate-300"
-                                      />
-                                      <span>{user.fullName}</span>
-                                    </label>
-                                  );
-                                })
-                              )}
-                            </div>
-                          ) : null}
-
-                          <div className="mt-3 border-l-2 border-emerald-200 pl-3">
-                            <label className="grid gap-1 text-sm">
-                              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable range</span>
-                              <select
-                                value={draft.shareScope}
+                          return (
+                            <label key={user.id} className="flex items-center gap-2 text-sm text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
                                 onChange={(event) => {
-                                  const nextScope = event.target.value as "whole" | "range";
+                                  const checked = event.target.checked;
                                   setDraft((current) => ({
                                     ...current,
-                                    shareScope: nextScope,
-                                    sharedRangeStartDate: nextScope === "range" ? (current.sharedRangeStartDate || current.startDate) : current.startDate,
-                                    sharedRangeEndDate: nextScope === "range" ? (current.sharedRangeEndDate || current.endDate) : current.endDate
+                                    sharedWithUserIds: checked
+                                      ? [...current.sharedWithUserIds, user.id]
+                                      : current.sharedWithUserIds.filter((entry) => entry !== user.id)
                                   }));
                                 }}
-                                className="rounded-lg border border-slate-300 px-3 py-2"
-                              >
-                                <option value="whole">Whole reservation</option>
-                                <option value="range">Date range only</option>
-                              </select>
+                                className="h-4 w-4 rounded border-slate-300"
+                              />
+                              <span>{user.fullName}</span>
                             </label>
-
-                            {draft.shareScope === "range" ? (
-                              <div className="mt-2 grid gap-2 border-l-2 border-emerald-100 pl-3 sm:grid-cols-2">
-                                <label className="grid gap-1 text-sm">
-                                  <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable start date</span>
-                                  <input
-                                    type="date"
-                                    value={draft.sharedRangeStartDate}
-                                    min={draft.startDate}
-                                    max={draft.endDate}
-                                    onChange={(event) => {
-                                      setDraft((current) => ({ ...current, sharedRangeStartDate: event.target.value }));
-                                    }}
-                                    className="rounded-lg border border-slate-300 px-3 py-2"
-                                  />
-                                </label>
-                                <label className="grid gap-1 text-sm">
-                                  <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable end date</span>
-                                  <input
-                                    type="date"
-                                    value={draft.sharedRangeEndDate}
-                                    min={draft.startDate}
-                                    max={draft.endDate}
-                                    onChange={(event) => {
-                                      setDraft((current) => ({ ...current, sharedRangeEndDate: event.target.value }));
-                                    }}
-                                    className="rounded-lg border border-slate-300 px-3 py-2"
-                                  />
-                                </label>
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 sm:col-span-3">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => {
-                          void saveReservation(reservation.id);
-                        }}
-                        className="rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-60"
-                      >
-                        Save changes
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => {
-                          setEditingId(null);
-                          setStatus("");
-                        }}
-                        className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <p className={`mt-3 text-sm ${isSharedReservation ? "text-emerald-700" : "text-slate-500"}`}>
-                      {isSharedReservation ? `Shared with: ${sharedWithNames.join(", ")}` : "Shared: No"}
-                    </p>
-                    {isSharedReservation ? <p className="mt-1 text-xs text-emerald-700">Shared range: {sharedRangeLabel}</p> : null}
-                    {reservation.notes ? <p className="mt-2 text-sm text-slate-600">{reservation.notes}</p> : null}
-                    {reservation.declineReason ? (
-                      <p className={`mt-2 text-sm ${reservation.declineReason === "Canceled by user" ? "text-amber-700" : "text-rose-700"}`}>
-                        {reservation.declineReason === "Canceled by user" ? "Cancellation note: Canceled by you" : `Cancellation reason: ${reservation.declineReason}`}
-                      </p>
-                    ) : null}
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {reservation.status !== "declined" ? (
-                        <>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => startEditing(reservation)}
-                            className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 disabled:opacity-60"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => {
-                              void cancelReservation(reservation.id);
-                            }}
-                            className="rounded-lg border border-rose-300 px-4 py-2 text-rose-700 disabled:opacity-60"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <span className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800">Canceled</span>
+                          );
+                        })
                       )}
                     </div>
+                  ) : null}
+
+                  <div className="mt-3 border-l-2 border-emerald-200 pl-3">
+                    <label className="grid gap-1 text-sm">
+                      <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable range</span>
+                      <select
+                        value={draft.shareScope}
+                        onChange={(event) => {
+                          const nextScope = event.target.value as "whole" | "range";
+                          setDraft((current) => ({
+                            ...current,
+                            shareScope: nextScope,
+                            sharedRangeStartDate: nextScope === "range" ? (current.sharedRangeStartDate || current.startDate) : current.startDate,
+                            sharedRangeEndDate: nextScope === "range" ? (current.sharedRangeEndDate || current.endDate) : current.endDate
+                          }));
+                        }}
+                        className="rounded-lg border border-slate-300 px-3 py-2"
+                      >
+                        <option value="whole">Whole reservation</option>
+                        <option value="range">Date range only</option>
+                      </select>
+                    </label>
+
+                    {draft.shareScope === "range" ? (
+                      <div className="mt-2 grid gap-2 border-l-2 border-emerald-100 pl-3 sm:grid-cols-2">
+                        <label className="grid gap-1 text-sm">
+                          <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable start date</span>
+                          <input
+                            type="date"
+                            value={draft.sharedRangeStartDate}
+                            min={draft.startDate}
+                            max={draft.endDate}
+                            onChange={(event) => {
+                              setDraft((current) => ({ ...current, sharedRangeStartDate: event.target.value }));
+                            }}
+                            className="rounded-lg border border-slate-300 px-3 py-2"
+                          />
+                        </label>
+                        <label className="grid gap-1 text-sm">
+                          <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Sharable end date</span>
+                          <input
+                            type="date"
+                            value={draft.sharedRangeEndDate}
+                            min={draft.startDate}
+                            max={draft.endDate}
+                            onChange={(event) => {
+                              setDraft((current) => ({ ...current, sharedRangeEndDate: event.target.value }));
+                            }}
+                            className="rounded-lg border border-slate-300 px-3 py-2"
+                          />
+                        </label>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap gap-2 sm:col-span-3">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  void saveReservation(reservation.id);
+                }}
+                className="rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-60"
+              >
+                Save changes
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setEditingId(null);
+                  setStatus("");
+                }}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className={`mt-3 text-sm ${isSharedReservation ? "text-emerald-700" : "text-slate-500"}`}>
+              {isSharedReservation ? `Shared with: ${sharedWithNames.join(", ")}` : "Shared: No"}
+            </p>
+            {isSharedReservation ? <p className="mt-1 text-xs text-emerald-700">Shared range: {sharedRangeLabel}</p> : null}
+            {reservation.notes ? <p className="mt-2 text-sm text-slate-600">{reservation.notes}</p> : null}
+            {reservation.declineReason ? (
+              <p className={`mt-2 text-sm ${reservation.declineReason === "Canceled by user" ? "text-amber-700" : "text-rose-700"}`}>
+                {reservation.declineReason === "Canceled by user" ? "Cancellation note: Canceled by you" : `Cancellation reason: ${reservation.declineReason}`}
+              </p>
+            ) : null}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {mode === "mine" ? (
+                reservation.status !== "declined" ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => startEditing(reservation)}
+                      className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 disabled:opacity-60"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        void cancelReservation(reservation.id);
+                      }}
+                      className="rounded-lg border border-rose-300 px-4 py-2 text-rose-700 disabled:opacity-60"
+                    >
+                      Cancel
+                    </button>
                   </>
-                )}
-              </article>
-            );
-          })
+                ) : (
+                  <span className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800">Canceled</span>
+                )
+              ) : (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    void deleteOtherReservation(reservation);
+                  }}
+                  className="rounded-lg border border-rose-300 px-4 py-2 text-rose-700 disabled:opacity-60"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </>
         )}
-      </div>
-    </section>
+      </article>
+    );
+  }
+
+  return (
+    <div className="grid gap-4">
+      <section className="card p-5 sm:p-6">
+        <h2 className="text-xl sm:text-2xl">Manage Reservations</h2>
+        <p className="mt-2 text-sm text-slate-600">Review your reservations and edit or cancel them from this page.</p>
+
+        {status ? <p className="mt-3 text-sm text-slate-700">{status}</p> : null}
+
+        <div className="mt-5 grid gap-3">
+          {sortedMyReservations.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">
+              You do not have any reservations yet.
+            </div>
+          ) : (
+            sortedMyReservations.map((reservation) => renderReservationCard(reservation, "mine"))
+          )}
+        </div>
+      </section>
+
+      {isSuperadmin ? (
+        <section className="card p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg sm:text-xl">Other Reservations</h3>
+              <p className="mt-1 text-sm text-slate-600">Review all other users' reservations and delete them if necessary.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsOtherReservationsOpen((current) => !current)}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
+            >
+              {isOtherReservationsOpen ? "Collapse" : `Expand (${sortedOtherReservations.length})`}
+            </button>
+          </div>
+
+          {isOtherReservationsOpen ? (
+            <div className="mt-5 grid gap-3">
+              {sortedOtherReservations.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">
+                  No other user reservations found.
+                </div>
+              ) : (
+                sortedOtherReservations.map((reservation) => renderReservationCard(reservation, "other"))
+              )}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+    </div>
   );
 }
 
