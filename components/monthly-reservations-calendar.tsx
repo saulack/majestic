@@ -304,7 +304,8 @@ export function MonthlyReservationsCalendar({
 
   function handleMonthSwipeStart(event: React.TouchEvent<HTMLElement>) {
     const target = event.target as HTMLElement | null;
-    monthSwipeFromInteractiveRef.current = Boolean(target?.closest("button, input, select, textarea, a"));
+    const startedOnCalendarDay = Boolean(target?.closest('[data-calendar-day="true"]'));
+    monthSwipeFromInteractiveRef.current = Boolean(target?.closest("button, input, select, textarea, a")) && !startedOnCalendarDay;
 
     if (monthSwipeFromInteractiveRef.current) {
       monthSwipeTrackingRef.current = false;
@@ -333,6 +334,9 @@ export function MonthlyReservationsCalendar({
       monthSwipeDirectionRef.current = null;
       return;
     }
+
+    // Keep horizontal swipe responsive by preventing native scroll while tracking.
+    event.preventDefault();
 
     if (Math.abs(deltaX) >= 42 && Math.abs(deltaX) >= Math.abs(deltaY) * 1.2) {
       monthSwipeDirectionRef.current = deltaX < 0 ? "left" : "right";
@@ -725,14 +729,6 @@ export function MonthlyReservationsCalendar({
           />
         </label>
 
-        {startDate && endDate ? (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" onClick={clearSelection} className="rounded-lg border border-slate-300 px-4 py-2">
-              Clear selection
-            </button>
-          </div>
-        ) : null}
-
         {selectionStatus ? <p className="mt-3 text-xs text-slate-700">{selectionStatus}</p> : null}
 
         {formMessage ? (
@@ -887,6 +883,7 @@ export function MonthlyReservationsCalendar({
                   <button
                     key={dayKey}
                     type="button"
+                    data-calendar-day="true"
                     onPointerDown={(event) => handleCalendarPointerDown(event, dayKey)}
                     onPointerMove={handleCalendarTouchMove}
                     onPointerUp={handleCalendarTouchEnd}
@@ -904,9 +901,6 @@ export function MonthlyReservationsCalendar({
                       "min-h-20 rounded-lg border p-1.5 text-left text-[11px] transition sm:min-h-28 sm:p-2 sm:text-xs",
                       isSameMonth(day, monthCursor) ? "" : "opacity-65",
                       isBookedCell ? bookedCellCls : "border-slate-200 bg-white",
-                      isToday
-                        ? "ring-2 ring-sky-500 ring-offset-2 ring-offset-white dark:ring-sky-300 dark:ring-offset-slate-900"
-                        : "",
                       isSelected ? "ring-2 ring-amber-500 ring-offset-1" : ""
                     ].join(" ")}
                   >
