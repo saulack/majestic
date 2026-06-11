@@ -8,7 +8,7 @@ type MaintenanceTypeInput = {
   thresholdDays?: number | string;
 };
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuthenticated();
   if (!auth.ok) {
     return NextResponse.json({ error: auth.message }, { status: 403 });
@@ -24,7 +24,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
   }
 
-  const typeId = params.id.trim();
+  const resolvedParams = await params;
+  const typeId = resolvedParams.id.trim();
   if (!typeId) {
     return NextResponse.json({ error: "Maintenance type ID is required." }, { status: 400 });
   }
