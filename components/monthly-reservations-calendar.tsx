@@ -91,12 +91,18 @@ export function MonthlyReservationsCalendar({
   const touchStartXRef = useRef(0);
   const touchStartYRef = useRef(0);
   const suppressNextTouchClickRef = useRef(false);
+  const monthSwipeStartXRef = useRef(0);
+  const monthSwipeStartYRef = useRef(0);
+  const monthSwipeTrackingRef = useRef(false);
+  const monthSwipeFromInteractiveRef = useRef(false);
+  const monthSwipeDirectionRef = useRef<"left" | "right" | null>(null);
   const canDeleteAnyReservation = actingUser.role === "superadmin";
   const canBookForOthers = users.length > 1;
 
   const monthStart = startOfMonth(monthCursor);
   const calendarStart = startOfWeek(monthStart);
   const calendarDays = eachDayOfInterval({ start: calendarStart, end: addDays(calendarStart, 41) });
+  const todayKey = format(new Date(), "yyyy-MM-dd");
 
   const activeStart = startDate;
   const activeEnd = endDate;
@@ -294,6 +300,57 @@ export function MonthlyReservationsCalendar({
     }
 
     touchPointerActiveRef.current = false;
+  }
+
+  function handleMonthSwipeStart(event: React.TouchEvent<HTMLElement>) {
+    const target = event.target as HTMLElement | null;
+    monthSwipeFromInteractiveRef.current = Boolean(target?.closest("button, input, select, textarea, a"));
+
+    if (monthSwipeFromInteractiveRef.current) {
+      monthSwipeTrackingRef.current = false;
+      monthSwipeDirectionRef.current = null;
+      return;
+    }
+
+    const touch = event.touches[0];
+    monthSwipeStartXRef.current = touch.clientX;
+    monthSwipeStartYRef.current = touch.clientY;
+    monthSwipeTrackingRef.current = true;
+    monthSwipeDirectionRef.current = null;
+  }
+
+  function handleMonthSwipeMove(event: React.TouchEvent<HTMLElement>) {
+    if (!monthSwipeTrackingRef.current || monthSwipeFromInteractiveRef.current) {
+      return;
+    }
+
+    const touch = event.touches[0];
+    const deltaX = touch.clientX - monthSwipeStartXRef.current;
+    const deltaY = touch.clientY - monthSwipeStartYRef.current;
+
+    if (Math.abs(deltaY) > Math.abs(deltaX)) {
+      monthSwipeTrackingRef.current = false;
+      monthSwipeDirectionRef.current = null;
+      return;
+    }
+
+    if (Math.abs(deltaX) >= 42 && Math.abs(deltaX) >= Math.abs(deltaY) * 1.2) {
+      monthSwipeDirectionRef.current = deltaX < 0 ? "left" : "right";
+    }
+  }
+
+  function handleMonthSwipeEnd() {
+    if (monthSwipeTrackingRef.current && !monthSwipeFromInteractiveRef.current) {
+      if (monthSwipeDirectionRef.current === "left") {
+        setMonthCursor((current) => addMonths(current, 1));
+      } else if (monthSwipeDirectionRef.current === "right") {
+        setMonthCursor((current) => subMonths(current, 1));
+      }
+    }
+
+    monthSwipeTrackingRef.current = false;
+    monthSwipeFromInteractiveRef.current = false;
+    monthSwipeDirectionRef.current = null;
   }
 
   function handleCalendarPointerEnter(dayKey: string) {
@@ -685,7 +742,13 @@ export function MonthlyReservationsCalendar({
         ) : null}
       </aside>
 
-      <section className={["card p-5 sm:p-6", hasActiveSelection ? "pb-24 sm:pb-6" : "pb-5 sm:pb-6"].join(" ")}>
+      <section
+        className={["card p-5 sm:p-6 touch-pan-y", hasActiveSelection ? "pb-24 sm:pb-6" : "pb-5 sm:pb-6"].join(" ")}
+        onTouchStart={handleMonthSwipeStart}
+        onTouchMove={handleMonthSwipeMove}
+        onTouchEnd={handleMonthSwipeEnd}
+        onTouchCancel={handleMonthSwipeEnd}
+      >
         <h2 className="text-xl sm:text-2xl">Monthly Reservation Calendar</h2>
         <p className="mt-2 text-sm text-slate-600">Tap once to start, tap again to finish, then reserve from the action bar.</p>
 
@@ -741,6 +804,13 @@ export function MonthlyReservationsCalendar({
         <div className="mt-3 flex items-center justify-end gap-2">
           <button
             type="button"
+            className="min-h-11 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+            onClick={() => setMonthCursor(startOfMonth(new Date()))}
+          >
+            Today
+          </button>
+          <button
+            type="button"
             className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
             onClick={() => setMonthCursor(subMonths(monthCursor, 1))}
             aria-label="Previous month"
@@ -781,6 +851,7 @@ export function MonthlyReservationsCalendar({
             const hasSharedStay = activeReservationsOnDay.length > 1;
             const isBookedCell = Boolean(primaryReservation);
             const isOwnReservation = primaryReservation?.userId === actingUser.id;
+            const isToday = dayKey === todayKey;
             const isWithinExistingShareRange = !primaryReservation?.sharedRangeStartDate || !primaryReservation?.sharedRangeEndDate
               ? true
               : dayKey >= primaryReservation.sharedRangeStartDate && dayKey <= primaryReservation.sharedRangeEndDate;
@@ -830,10 +901,24 @@ export function MonthlyReservationsCalendar({
                       "min-h-20 rounded-lg border p-1.5 text-left text-[11px] transition sm:min-h-28 sm:p-2 sm:text-xs",
                       isSameMonth(day, monthCursor) ? "" : "opacity-65",
                       isBookedCell ? bookedCellCls : "border-slate-200 bg-white",
+                      isToday
+                        ? "ring-2 ring-sky-500 ring-offset-2 ring-offset-white dark:ring-sky-300 dark:ring-offset-slate-900"
+                        : "",
                       isSelected ? "ring-2 ring-amber-500 ring-offset-1" : ""
                     ].join(" ")}
                   >
-                    <div className={`text-xs font-semibold ${isBookedCell ? "text-inherit" : "text-slate-800"}`}>{format(day, "d")}</div>
+                    <div
+                      className={[
+                        "inline-flex min-h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-semibold",
+                        isToday
+                          ? "bg-sky-600 text-white dark:bg-sky-300 dark:text-slate-950"
+                          : isBookedCell
+                            ? "text-inherit"
+                            : "text-slate-800"
+                      ].join(" ")}
+                    >
+                      {format(day, "d")}
+                    </div>
 
                     {primaryReservation ? (
                       <div className="mt-1.5 sm:mt-2">
