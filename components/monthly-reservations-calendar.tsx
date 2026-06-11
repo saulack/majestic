@@ -87,6 +87,10 @@ export function MonthlyReservationsCalendar({
   const isDraggingRef = useRef(false);
   const hasAppliedQueryParamsRef = useRef(false);
   const dragMovedRef = useRef(false);
+  const touchPointerActiveRef = useRef(false);
+  const touchStartXRef = useRef(0);
+  const touchStartYRef = useRef(0);
+  const suppressNextTouchClickRef = useRef(false);
   const canDeleteAnyReservation = actingUser.role === "superadmin";
   const canBookForOthers = users.length > 1;
 
@@ -231,7 +235,15 @@ export function MonthlyReservationsCalendar({
     setSelectionStatus("Expanded range to include selected day.");
   }
 
-  function handleCalendarPointerDown(dayKey: string) {
+  function handleCalendarPointerDown(event: React.PointerEvent<HTMLButtonElement>, dayKey: string) {
+    if (event.pointerType === "touch") {
+      touchPointerActiveRef.current = true;
+      touchStartXRef.current = event.clientX;
+      touchStartYRef.current = event.clientY;
+      suppressNextTouchClickRef.current = false;
+      return;
+    }
+
     isDraggingRef.current = true;
     dragMovedRef.current = false;
 
@@ -262,6 +274,26 @@ export function MonthlyReservationsCalendar({
 
     setEndDate(clampedTarget);
     setSelectionStatus("Drag to later dates to add. Drag to earlier dates to remove.");
+  }
+
+  function handleCalendarTouchMove(event: React.PointerEvent<HTMLButtonElement>) {
+    if (event.pointerType !== "touch" || !touchPointerActiveRef.current) {
+      return;
+    }
+
+    const deltaX = Math.abs(event.clientX - touchStartXRef.current);
+    const deltaY = Math.abs(event.clientY - touchStartYRef.current);
+    if (deltaY > 8 || deltaX > 8) {
+      suppressNextTouchClickRef.current = true;
+    }
+  }
+
+  function handleCalendarTouchEnd(event: React.PointerEvent<HTMLButtonElement>) {
+    if (event.pointerType !== "touch") {
+      return;
+    }
+
+    touchPointerActiveRef.current = false;
   }
 
   function handleCalendarPointerEnter(dayKey: string) {
@@ -781,9 +813,19 @@ export function MonthlyReservationsCalendar({
                   <button
                     key={dayKey}
                     type="button"
-                    onPointerDown={() => handleCalendarPointerDown(dayKey)}
+                    onPointerDown={(event) => handleCalendarPointerDown(event, dayKey)}
+                    onPointerMove={handleCalendarTouchMove}
+                    onPointerUp={handleCalendarTouchEnd}
+                    onPointerCancel={handleCalendarTouchEnd}
                     onPointerEnter={() => handleCalendarPointerEnter(dayKey)}
-                    onClick={() => handleCalendarClick(dayKey)}
+                    onClick={() => {
+                      if (suppressNextTouchClickRef.current) {
+                        suppressNextTouchClickRef.current = false;
+                        return;
+                      }
+
+                      handleCalendarClick(dayKey);
+                    }}
                     className={[
                       "min-h-20 rounded-lg border p-1.5 text-left text-[11px] transition sm:min-h-28 sm:p-2 sm:text-xs",
                       isSameMonth(day, monthCursor) ? "" : "opacity-65",

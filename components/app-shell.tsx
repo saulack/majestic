@@ -62,7 +62,7 @@ function NavItem({ href, label, icon }: { href: string; label: string; icon: Rea
   return (
     <Link
       href={href}
-      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-medium text-[#3c6f78] transition hover:bg-[#dbf2ef] hover:text-[#23484f] sm:shrink-0 sm:snap-start sm:justify-start sm:px-4 sm:text-sm"
+      className="inline-flex min-h-11 w-full items-center justify-start gap-2 rounded-md px-3 py-2 text-left text-xs font-medium text-[#3c6f78] transition hover:bg-[#dbf2ef] hover:text-[#23484f] sm:w-auto sm:shrink-0 sm:snap-start sm:px-4 sm:text-sm"
     >
       {icon}
       <span className="inline">{label}</span>

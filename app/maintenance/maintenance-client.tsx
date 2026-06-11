@@ -57,6 +57,7 @@ export function MaintenanceClientPage({
   const [editTypeThresholdDays, setEditTypeThresholdDays] = useState(30);
   const [editTypeStatus, setEditTypeStatus] = useState("");
   const [editTypeSubmitting, setEditTypeSubmitting] = useState(false);
+  const [deleteTypeSubmitting, setDeleteTypeSubmitting] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -240,6 +241,15 @@ export function MaintenanceClientPage({
     }
   }
 
+  function closeEditTypeModal() {
+    setEditingTypeId(null);
+    setEditTypeName("");
+    setEditTypeThresholdDays(30);
+    setEditTypeStatus("");
+    setEditTypeSubmitting(false);
+    setDeleteTypeSubmitting(false);
+  }
+
   async function submitEditType(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const typeName = editTypeName.trim();
@@ -269,15 +279,47 @@ export function MaintenanceClientPage({
         return;
       }
 
-      setEditTypeStatus(payload.message ?? "Maintenance type updated.");
-      setEditingTypeId(null);
-      setEditTypeName("");
-      setEditTypeThresholdDays(30);
+      setAddTypeStatus(payload.message ?? "Maintenance type updated.");
+      closeEditTypeModal();
       router.refresh();
     } catch {
       setEditTypeStatus("Request failed.");
     } finally {
       setEditTypeSubmitting(false);
+    }
+  }
+
+  async function deleteMaintenanceType() {
+    if (!editingTypeId) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete ${editTypeName.trim() || "this maintenance type"}? This also removes related maintenance records and reminders.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleteTypeSubmitting(true);
+    setEditTypeStatus("");
+
+    try {
+      const response = await fetch(`/api/maintenance/types/${editingTypeId}`, {
+        method: "DELETE"
+      });
+
+      const payload = (await response.json()) as ApiResult;
+      if (!response.ok) {
+        setEditTypeStatus(payload.error ?? "Unable to delete maintenance type.");
+        return;
+      }
+
+      setAddTypeStatus(payload.message ?? "Maintenance type deleted.");
+      closeEditTypeModal();
+      router.refresh();
+    } catch {
+      setEditTypeStatus("Request failed.");
+    } finally {
+      setDeleteTypeSubmitting(false);
     }
   }
 
@@ -328,6 +370,9 @@ export function MaintenanceClientPage({
                 className="rounded-lg border border-slate-300 bg-white px-3 py-2"
                 required
               />
+              <span className="text-xs text-slate-500">
+                This controls when users are notified to run this maintenance again after it was last completed.
+              </span>
             </label>
           </div>
 
@@ -375,64 +420,6 @@ export function MaintenanceClientPage({
 
           {addTypeStatus ? <p className="text-sm text-slate-700">{addTypeStatus}</p> : null}
         </form>
-
-        {editingTypeId ? (
-          <form className="mt-5 grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4" onSubmit={submitEditType}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold text-slate-900">Edit maintenance type</h3>
-                <p className="mt-1 text-sm text-slate-600">Update the type name or threshold days.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingTypeId(null)}
-                className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-1.5 text-sm font-medium">
-                <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Type name</span>
-                <input
-                  value={editTypeName}
-                  onChange={(event) => setEditTypeName(event.target.value)}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-                  placeholder="Example: Window cleaning"
-                  required
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-sm font-medium">
-                <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Threshold days</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={editTypeThresholdDays}
-                  onChange={(event) => setEditTypeThresholdDays(Number(event.target.value) > 0 ? Number(event.target.value) : 1)}
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-                  required
-                />
-              </label>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button type="submit" disabled={editTypeSubmitting} className="min-h-11 rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-60">
-                {editTypeSubmitting ? "Saving..." : "Save changes"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditingTypeId(null)}
-                className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-            </div>
-
-            {editTypeStatus ? <p className="text-sm text-slate-700">{editTypeStatus}</p> : null}
-          </form>
-        ) : null}
 
         <form className="mt-5 grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3" onSubmit={handleSubmit}>
           <label className="grid gap-1.5 text-sm font-medium">
@@ -488,8 +475,17 @@ export function MaintenanceClientPage({
 
       <div className="card p-5 sm:p-6">
         <div>
-          <h3 className="text-lg sm:text-xl">Maintenance Thresholds</h3>
-          <p className="mt-1 text-sm text-slate-500">Threshold days define how long after the last completed maintenance this type becomes due again. Non-superadmin threshold changes require site administrator approval.</p>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg sm:text-xl">Maintenance Thresholds</h3>
+            <span
+              title="Threshold days determine when a user gets notified to run this maintenance type again."
+              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-semibold text-slate-600"
+              aria-label="Threshold info"
+            >
+              i
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">Threshold days define when users get notified to run this maintenance again after the last completion. Non-superadmin threshold changes require site administrator approval.</p>
         </div>
 
         <div className="mt-4 grid gap-3">
@@ -526,7 +522,12 @@ export function MaintenanceClientPage({
               </button>
 
               <label className="grid gap-1.5 text-sm font-medium">
-                <span className="text-xs uppercase tracking-[0.12em] text-slate-500">New threshold days</span>
+                <span className="inline-flex items-center gap-1 text-xs uppercase tracking-[0.12em] text-slate-500">
+                  New threshold days
+                  <span title="When this many days pass since last completion, users are notified to run this maintenance." className="normal-case text-[11px] text-slate-400">
+                    (i)
+                  </span>
+                </span>
                 <input
                   type="number"
                   min={1}
@@ -601,6 +602,75 @@ export function MaintenanceClientPage({
           )}
         </div>
       </div>
+
+      {editingTypeId ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Edit maintenance type</h3>
+                <p className="mt-1 text-sm text-slate-600">Update details or delete this type.</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditTypeModal}
+                className="inline-flex min-h-10 items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <form className="mt-5 grid gap-4" onSubmit={submitEditType}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-medium">
+                  <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Type name</span>
+                  <input
+                    value={editTypeName}
+                    onChange={(event) => setEditTypeName(event.target.value)}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    placeholder="Example: Window cleaning"
+                    required
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-medium">
+                  <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Threshold days</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={editTypeThresholdDays}
+                    onChange={(event) => setEditTypeThresholdDays(Number(event.target.value) > 0 ? Number(event.target.value) : 1)}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+                    required
+                  />
+                </label>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="submit"
+                  disabled={editTypeSubmitting || deleteTypeSubmitting}
+                  className="min-h-11 rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-60"
+                >
+                  {editTypeSubmitting ? "Saving..." : "Save changes"}
+                </button>
+                <button
+                  type="button"
+                  disabled={editTypeSubmitting || deleteTypeSubmitting}
+                  onClick={() => {
+                    void deleteMaintenanceType();
+                  }}
+                  className="min-h-11 rounded-lg border border-rose-300 bg-white px-4 py-2 text-rose-700 disabled:opacity-60"
+                >
+                  {deleteTypeSubmitting ? "Deleting..." : "Delete type"}
+                </button>
+              </div>
+
+              {editTypeStatus ? <p className="text-sm text-slate-700">{editTypeStatus}</p> : null}
+            </form>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

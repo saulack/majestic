@@ -642,8 +642,14 @@ export function AdminConsole({
           onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
+            const userId = String(form.get("userId") ?? "").trim();
+            const confirmed = window.confirm(`Delete user ${userId}? This permanently removes their account and related profile data.`);
+            if (!confirmed) {
+              return;
+            }
+
             void postJson("/api/admin/delete-user", {
-              userId: String(form.get("userId") ?? "")
+              userId
             });
           }}
         >

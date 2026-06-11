@@ -5,7 +5,17 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { isBiometricAuthEnabled, supportsBiometricAuth, verifyBiometricAuthentication } from "@/lib/biometric-auth";
-import { activateLocalAuthSession, getLocalAuthDefaults, readLocalAuthSnapshot, setLocalAuthPassword } from "@/lib/local-auth";
+import {
+  activateLocalAuthSession,
+  clearLocalAuthPassword,
+  getLastEnteredUsername,
+  getLocalAuthDefaults,
+  isRememberDeviceEnabled,
+  readLocalAuthSnapshot,
+  setLocalAuthPassword,
+  setLocalAuthUsername,
+  setRememberDeviceEnabled
+} from "@/lib/local-auth";
 
 function resolveLoginEmail(identifier: string) {
   return identifier.trim().toLowerCase();
@@ -20,17 +30,30 @@ export default function LoginPage() {
   const biometricAvailable = supportsBiometricAuth() && isBiometricAuthEnabled();
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resetEmailBusy, setResetEmailBusy] = useState(false);
   const [loginMethod, setLoginMethod] = useState<"password" | "biometric">("password");
   const [resetEmail, setResetEmail] = useState("");
   const [resetUsername, setResetUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [rememberDevice, setRememberDevice] = useState(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+
+    return isRememberDeviceEnabled();
+  });
   const [loginIdentifier, setLoginIdentifier] = useState(() => {
     if (typeof window === "undefined") {
       return "";
     }
 
-    return new URLSearchParams(window.location.search).get("email")?.trim() ?? "";
+    const fromQuery = new URLSearchParams(window.location.search).get("email")?.trim();
+    if (fromQuery) {
+      return fromQuery;
+    }
+
+    return getLastEnteredUsername();
   });
 
   async function completeReset() {
@@ -173,6 +196,13 @@ export default function LoginPage() {
     setBusy(false);
 
     if (!error) {
+      setLocalAuthUsername(identifier);
+      setRememberDeviceEnabled(rememberDevice);
+      if (rememberDevice) {
+        setLocalAuthPassword(password);
+      } else {
+        clearLocalAuthPassword();
+      }
       activateLocalAuthSession(identifier);
       router.push("/");
       router.refresh();
@@ -247,6 +277,42 @@ export default function LoginPage() {
     router.refresh();
   }
 
+  async function handleForgotPassword() {
+    const email = resolveLoginEmail(loginIdentifier);
+
+    if (!email) {
+      setMessage("Enter your email first, then click Forgot password.");
+      return;
+    }
+
+    if (!emailLooksValid(email)) {
+      setMessage("Enter a valid email address to reset your password.");
+      return;
+    }
+
+    const supabase = createClient();
+    if (!supabase) {
+      setMessage("Supabase is not configured yet. Add env variables first.");
+      return;
+    }
+
+    setResetEmailBusy(true);
+    setMessage("");
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`
+    });
+
+    setResetEmailBusy(false);
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setMessage(`Password reset email sent to ${email}. Open the link in your email to set a new password.`);
+  }
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-6">
       <div className="card w-full p-6 sm:p-8">
@@ -305,7 +371,13 @@ export default function LoginPage() {
                 name="email"
                 type="email"
                 value={loginIdentifier}
-                onChange={(event) => setLoginIdentifier(event.target.value)}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setLoginIdentifier(nextValue);
+                  if (nextValue.trim()) {
+                    setLocalAuthUsername(nextValue.trim().toLowerCase());
+                  }
+                }}
                 className="rounded-lg border border-slate-300 px-3 py-2"
                 placeholder="name@example.com"
                 autoComplete="email"
@@ -316,6 +388,34 @@ export default function LoginPage() {
               <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Password</span>
               <input name="password" type="password" className="rounded-lg border border-slate-300 px-3 py-2" placeholder="Password" />
             </label>
+            <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={rememberDevice}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setRememberDevice(checked);
+                  setRememberDeviceEnabled(checked);
+                  if (!checked) {
+                    clearLocalAuthPassword();
+                  }
+                }}
+                className="h-4 w-4"
+              />
+              Remember my device
+            </label>
+            <div className="-mt-1">
+              <button
+                type="button"
+                disabled={busy || resetEmailBusy}
+                onClick={() => {
+                  void handleForgotPassword();
+                }}
+                className="text-sm font-medium text-amber-700 hover:underline disabled:opacity-60"
+              >
+                {resetEmailBusy ? "Sending reset email..." : "Forgot password?"}
+              </button>
+            </div>
             <button type="submit" disabled={busy} className="rounded-lg bg-amber-700 px-4 py-2 text-white">
               {busy ? "Signing in..." : "Sign in"}
             </button>

@@ -129,3 +129,44 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   });
 }
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAuthenticated();
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.message }, { status: 403 });
+  }
+
+  const admin = createAdminClient();
+  if (!admin) {
+    return NextResponse.json({ error: "Supabase is not configured on the server." }, { status: 500 });
+  }
+
+  const resolvedParams = await params;
+  const typeId = resolvedParams.id.trim();
+  if (!typeId) {
+    return NextResponse.json({ error: "Maintenance type ID is required." }, { status: 400 });
+  }
+
+  const { data: existingType, error: existingTypeError } = await admin
+    .from("maintenance_types")
+    .select("id,name")
+    .eq("id", typeId)
+    .single();
+
+  if (existingTypeError || !existingType) {
+    return NextResponse.json({ error: "Maintenance type not found." }, { status: 404 });
+  }
+
+  const { error: deleteError } = await admin
+    .from("maintenance_types")
+    .delete()
+    .eq("id", typeId);
+
+  if (deleteError) {
+    return NextResponse.json({ error: deleteError.message ?? "Failed to delete maintenance type." }, { status: 400 });
+  }
+
+  return NextResponse.json({
+    message: `${existingType.name} deleted.`
+  });
+}
