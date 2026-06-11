@@ -40,6 +40,7 @@ export function MaintenanceClientPage({
   const [editTypeStatus, setEditTypeStatus] = useState("");
   const [editTypeSubmitting, setEditTypeSubmitting] = useState(false);
   const [deleteTypeSubmitting, setDeleteTypeSubmitting] = useState(false);
+  const [cancellingRecordId, setCancellingRecordId] = useState<string | null>(null);
 
   async function createMaintenanceType(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -116,9 +117,8 @@ export function MaintenanceClientPage({
     if (!confirmed) {
       return;
     }
-
-    setSubmitting(true);
-    setStatus(null);
+    setAddTypeStatus("");
+    setCancellingRecordId(recordId);
 
     try {
       const response = await fetch("/api/maintenance/records", {
@@ -128,16 +128,18 @@ export function MaintenanceClientPage({
       });
 
       const payload = (await response.json()) as ApiResult;
-      setStatus(payload);
-
-      if (response.ok) {
-        setRecords((current) => current.filter((record) => record.id !== recordId));
-        router.refresh();
+      if (!response.ok) {
+        setAddTypeStatus(payload.error ?? "Unable to cancel maintenance booking.");
+        return;
       }
+
+      setRecords((current) => current.filter((record) => record.id !== recordId));
+      setAddTypeStatus(payload.message ?? "Maintenance booking cancelled.");
+      router.refresh();
     } catch {
-      setStatus({ error: "Request failed." });
+      setAddTypeStatus("Request failed.");
     } finally {
-      setSubmitting(false);
+      setCancellingRecordId(null);
     }
   }
 
@@ -396,13 +398,13 @@ export function MaintenanceClientPage({
                     {record.createdByUserId === actingUser.id && record.scheduledFor >= format(new Date(), "yyyy-MM-dd") ? (
                       <button
                         type="button"
-                        disabled={submitting}
+                        disabled={cancellingRecordId === record.id}
                         onClick={() => {
                           void cancelMaintenanceRecord(record.id);
                         }}
                         className="min-h-10 w-full rounded-lg border border-rose-300 px-3 py-1 text-xs font-medium text-rose-700 disabled:opacity-60 sm:w-auto"
                       >
-                        Cancel booking
+                        {cancellingRecordId === record.id ? "Cancelling..." : "Cancel booking"}
                       </button>
                     ) : null}
                   </div>
