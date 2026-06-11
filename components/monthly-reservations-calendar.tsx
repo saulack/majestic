@@ -80,6 +80,7 @@ export function MonthlyReservationsCalendar({
   const [selectionStatus, setSelectionStatus] = useState("");
   const [calendarSelectionError, setCalendarSelectionError] = useState("");
   const [formMessage, setFormMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [monthTransitionDirection, setMonthTransitionDirection] = useState<"left" | "right" | null>(null);
   const [isPending, startTransition] = useTransition();
   const searchParams = useSearchParams();
   const [declineTargetId, setDeclineTargetId] = useState<string | null>(null);
@@ -155,6 +156,23 @@ export function MonthlyReservationsCalendar({
       setSelectionStatus("Dates pre-populated from reservation.");
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!monthTransitionDirection) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setMonthTransitionDirection(null);
+    }, 220);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [monthTransitionDirection, monthCursor]);
+
+  function moveMonth(direction: "left" | "right") {
+    setMonthTransitionDirection(direction);
+    setMonthCursor((current) => (direction === "left" ? addMonths(current, 1) : subMonths(current, 1)));
+  }
 
   function applyRange(first: string, second: string, source: "calendar" | "input") {
     const [nextStart, nextEnd] = normalizeRange(first, second);
@@ -346,9 +364,9 @@ export function MonthlyReservationsCalendar({
   function handleMonthSwipeEnd() {
     if (monthSwipeTrackingRef.current && !monthSwipeFromInteractiveRef.current) {
       if (monthSwipeDirectionRef.current === "left") {
-        setMonthCursor((current) => addMonths(current, 1));
+        moveMonth("left");
       } else if (monthSwipeDirectionRef.current === "right") {
-        setMonthCursor((current) => subMonths(current, 1));
+        moveMonth("right");
       }
     }
 
@@ -811,7 +829,7 @@ export function MonthlyReservationsCalendar({
           <button
             type="button"
             className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
-            onClick={() => setMonthCursor(subMonths(monthCursor, 1))}
+            onClick={() => moveMonth("right")}
             aria-label="Previous month"
           >
             <ChevronLeft className="h-5 w-5" />
@@ -819,7 +837,7 @@ export function MonthlyReservationsCalendar({
           <button
             type="button"
             className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
-            onClick={() => setMonthCursor(addMonths(monthCursor, 1))}
+            onClick={() => moveMonth("left")}
             aria-label="Next month"
           >
             <ChevronRight className="h-5 w-5" />
@@ -827,7 +845,11 @@ export function MonthlyReservationsCalendar({
         </div>
 
         <div className="mt-5 overflow-x-auto pb-1">
-          <div className="min-w-[34rem]">
+          <div className={[
+            "min-w-[34rem]",
+            monthTransitionDirection === "left" ? "calendar-month-slide-left" : "",
+            monthTransitionDirection === "right" ? "calendar-month-slide-right" : ""
+          ].join(" ")}>
             <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-500 sm:text-xs">
               {weekdayHeaders.map((day) => (
                 <div key={day}>{day}</div>

@@ -214,6 +214,36 @@ textarea::placeholder {
   display: none;
 }
 
+@keyframes calendar-month-slide-left {
+  0% {
+    opacity: 0.55;
+    transform: translateX(18px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes calendar-month-slide-right {
+  0% {
+    opacity: 0.55;
+    transform: translateX(-18px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.calendar-month-slide-left {
+  animation: calendar-month-slide-left 220ms ease-out;
+}
+
+.calendar-month-slide-right {
+  animation: calendar-month-slide-right 220ms ease-out;
+}
+
 @media (max-width: 640px) {
   input,
   select,
