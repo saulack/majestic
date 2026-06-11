@@ -161,12 +161,9 @@ export function AccountClientPage({
 
           <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
             <h3 className="text-lg font-semibold">Notification Preferences</h3>
-            <div className="mt-4 grid gap-4 text-sm">
-              <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">Email me when I make a reservation</p>
-                  <p className="mt-1 text-xs text-slate-500">Sends a reservation confirmation email after booking.</p>
-                </div>
+            <div className="mt-4 grid gap-3 sm:gap-4">
+              <label className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white px-3 py-3 text-base sm:px-4 sm:py-3.5 sm:text-lg">
+                <p className="font-medium leading-tight text-slate-800">Email me when I make a reservation</p>
                 <ToggleSwitch
                   checked={reservationConfirmationEmail}
                   onCheckedChange={setReservationConfirmationEmail}
@@ -176,11 +173,8 @@ export function AccountClientPage({
                 />
               </label>
 
-              <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">Email me when someone books for me</p>
-                  <p className="mt-1 text-xs text-slate-500">Sends a confirmation email when another user creates a reservation on your behalf.</p>
-                </div>
+              <label className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white px-3 py-3 text-base sm:px-4 sm:py-3.5 sm:text-lg">
+                <p className="font-medium leading-tight text-slate-800">Email me when someone books for me</p>
                 <ToggleSwitch
                   checked={reservationBookedByOtherEmail}
                   onCheckedChange={setReservationBookedByOtherEmail}
@@ -190,11 +184,8 @@ export function AccountClientPage({
                 />
               </label>
 
-              <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">Email me when I have in-app notifications</p>
-                  <p className="mt-1 text-xs text-slate-500">Sends a Majestic inbox summary email when unread notifications are waiting.</p>
-                </div>
+              <label className="flex items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white px-3 py-3 text-base sm:px-4 sm:py-3.5 sm:text-lg">
+                <p className="font-medium leading-tight text-slate-800">Email me when I have in-app notifications</p>
                 <ToggleSwitch
                   checked={inAppInboxDigestEmail}
                   onCheckedChange={setInAppInboxDigestEmail}

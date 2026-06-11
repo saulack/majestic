@@ -3,7 +3,7 @@
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import type { MaintenanceRecord, MaintenanceThresholdApproval, MaintenanceType, UserProfile } from "@/lib/types";
+import type { MaintenanceRecord, MaintenanceType, UserProfile } from "@/lib/types";
 
 type ApiResult = {
   message?: string;
@@ -16,32 +16,14 @@ type ApiResult = {
 export function MaintenanceClientPage({
   actingUser,
   maintenanceTypes,
-  initialRecords,
-  initialPendingThresholdApprovals
+  initialRecords
 }: {
   actingUser: UserProfile;
   maintenanceTypes: MaintenanceType[];
   initialRecords: MaintenanceRecord[];
-  initialPendingThresholdApprovals: MaintenanceThresholdApproval[];
 }) {
   const router = useRouter();
-  const initialPendingThresholdByType = Object.fromEntries(
-    initialPendingThresholdApprovals.map((approval) => [approval.maintenanceTypeId, approval])
-  );
-  const [selectedTypeId, setSelectedTypeId] = useState(maintenanceTypes[0]?.id ?? "");
-  const [scheduledFor, setScheduledFor] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [records, setRecords] = useState(initialRecords);
-  const [status, setStatus] = useState<ApiResult | null>(null);
-  const hasMaintenanceTypes = maintenanceTypes.length > 0;
-  const [thresholdDrafts, setThresholdDrafts] = useState<Record<string, number>>(
-    Object.fromEntries(
-      maintenanceTypes.map((maintenanceType) => [maintenanceType.id, initialPendingThresholdByType[maintenanceType.id]?.proposedThresholdDays ?? maintenanceType.thresholdDays])
-    )
-  );
-  const [pendingThresholdByType, setPendingThresholdByType] = useState<Record<string, MaintenanceThresholdApproval>>(initialPendingThresholdByType);
-  const [thresholdStatusByType, setThresholdStatusByType] = useState<Record<string, string>>({});
-  const [thresholdSubmittingByType, setThresholdSubmittingByType] = useState<Record<string, boolean>>({});
   const [newTypeName, setNewTypeName] = useState("");
   const [newTypeThresholdDays, setNewTypeThresholdDays] = useState(30);
   const [createWithContact, setCreateWithContact] = useState(false);
@@ -58,33 +40,6 @@ export function MaintenanceClientPage({
   const [editTypeStatus, setEditTypeStatus] = useState("");
   const [editTypeSubmitting, setEditTypeSubmitting] = useState(false);
   const [deleteTypeSubmitting, setDeleteTypeSubmitting] = useState(false);
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmitting(true);
-    setStatus(null);
-
-    try {
-      const response = await fetch("/api/maintenance/records", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ maintenanceTypeId: selectedTypeId, scheduledFor })
-      });
-
-      const payload = (await response.json()) as ApiResult;
-      setStatus(payload);
-
-      if (response.ok && payload.record) {
-        setRecords((current) => [payload.record!, ...current]);
-        setScheduledFor("");
-        router.refresh();
-      }
-    } catch {
-      setStatus({ error: "Request failed." });
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function createMaintenanceType(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -153,51 +108,6 @@ export function MaintenanceClientPage({
       setAddTypeStatus("Request failed.");
     } finally {
       setCreatingType(false);
-    }
-  }
-
-  async function submitThresholdRequest(maintenanceTypeId: string) {
-    setThresholdSubmittingByType((current) => ({ ...current, [maintenanceTypeId]: true }));
-
-    try {
-      const response = await fetch("/api/maintenance/threshold-requests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          maintenanceTypeId,
-          thresholdDays: thresholdDrafts[maintenanceTypeId]
-        })
-      });
-
-      const payload = (await response.json()) as ApiResult;
-      setThresholdStatusByType((current) => ({
-        ...current,
-        [maintenanceTypeId]: payload.error ?? payload.message ?? "Threshold change submitted."
-      }));
-
-      if (response.ok) {
-        setPendingThresholdByType((current) => ({
-          ...current,
-          [maintenanceTypeId]: {
-            id: current[maintenanceTypeId]?.id ?? `pending-${maintenanceTypeId}`,
-            maintenanceTypeId,
-            maintenanceTypeName: maintenanceTypes.find((entry) => entry.id === maintenanceTypeId)?.name ?? "Maintenance type",
-            proposedThresholdDays: thresholdDrafts[maintenanceTypeId],
-            requestedByUserId: actingUser.id,
-            requestedByName: actingUser.fullName,
-            status: "pending",
-            createdAt: new Date().toISOString()
-          }
-        }));
-        router.refresh();
-      }
-    } catch {
-      setThresholdStatusByType((current) => ({
-        ...current,
-        [maintenanceTypeId]: "Request failed."
-      }));
-    } finally {
-      setThresholdSubmittingByType((current) => ({ ...current, [maintenanceTypeId]: false }));
     }
   }
 
@@ -421,142 +331,46 @@ export function MaintenanceClientPage({
           {addTypeStatus ? <p className="text-sm text-slate-700">{addTypeStatus}</p> : null}
         </form>
 
-        <form className="mt-5 grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3" onSubmit={handleSubmit}>
-          <label className="grid gap-1.5 text-sm font-medium">
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Maintenance type</span>
-            <select
-              value={selectedTypeId}
-              onChange={(event) => setSelectedTypeId(event.target.value)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-              required
-              disabled={!hasMaintenanceTypes}
-            >
-              {!hasMaintenanceTypes ? <option value="">No maintenance categories available</option> : null}
-              {maintenanceTypes.map((maintenanceType) => (
-                <option key={maintenanceType.id} value={maintenanceType.id}>
-                  {maintenanceType.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="grid gap-1.5 text-sm font-medium">
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Scheduled date</span>
-            <input
-              type="date"
-              value={scheduledFor}
-              onChange={(event) => setScheduledFor(event.target.value)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-              required
-            />
-          </label>
-
-          <div className="flex items-end sm:items-end">
-            <button type="submit" disabled={submitting || !selectedTypeId} className="min-h-11 w-full rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-60 sm:w-auto">
-              {submitting ? "Saving..." : "Log maintenance"}
-            </button>
-          </div>
-        </form>
-
-        {!hasMaintenanceTypes ? (
-          <p className="mt-3 text-sm text-amber-700">
-            Add a maintenance type above to start logging maintenance.
-          </p>
-        ) : null}
-
-        {status?.message || status?.error ? (
-          <p className={`mt-4 text-sm ${status.error ? "text-rose-700" : "text-emerald-700"}`}>{status.error ?? status.message}</p>
-        ) : null}
-
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-          Signed in as {actingUser.fullName}. Every maintenance log also appears in the shared activity log.
-        </div>
-      </div>
-
-      <div className="card p-5 sm:p-6">
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg sm:text-xl">Maintenance Thresholds</h3>
-            <span
-              title="Threshold days determine when a user gets notified to run this maintenance type again."
-              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 bg-white text-xs font-semibold text-slate-600"
-              aria-label="Threshold info"
-            >
-              i
-            </span>
-          </div>
-          <p className="mt-1 text-sm text-slate-500">Threshold days define when users get notified to run this maintenance again after the last completion. Non-superadmin threshold changes require site administrator approval.</p>
-        </div>
-
-        <div className="mt-4 grid gap-3">
-          {maintenanceTypes.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-              No maintenance types yet. Add one above to get started.
+        <div className="card p-5 sm:p-6">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h3 className="text-lg sm:text-xl">Maintenance Types</h3>
+              <p className="mt-1 text-sm text-slate-500">Each type shows its current threshold in a compact card. Edit opens the modal.</p>
             </div>
-          ) : maintenanceTypes.map((maintenanceType) => (
-            <form
-              key={maintenanceType.id}
-              className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3.5"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void submitThresholdRequest(maintenanceType.id);
-              }}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-slate-900">{maintenanceType.name}</p>
-                <p className="mt-1 text-xs text-slate-500">Current threshold: {maintenanceType.thresholdDays} days</p>
-                <p className="mt-1 text-xs text-slate-500">When the gap since last maintenance reaches this value, the type is flagged as due.</p>
-                {pendingThresholdByType[maintenanceType.id] ? (
-                  <p className="mt-1 text-xs font-medium text-amber-700">
-                    Pending threshold: {pendingThresholdByType[maintenanceType.id].proposedThresholdDays} days
-                  </p>
-                ) : null}
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {maintenanceTypes.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500 sm:col-span-2 xl:col-span-3">
+                No maintenance types yet. Add one above to get started.
               </div>
-
-              <button
-                type="button"
-                onClick={() => startEditingType(maintenanceType.id)}
-                className="min-h-11 w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-700 disabled:opacity-60 sm:w-auto"
-              >
-                Edit
-              </button>
-
-              <label className="grid gap-1.5 text-sm font-medium">
-                <span className="inline-flex items-center gap-1 text-xs uppercase tracking-[0.12em] text-slate-500">
-                  New threshold days
-                  <span title="When this many days pass since last completion, users are notified to run this maintenance." className="normal-case text-[11px] text-slate-400">
-                    (i)
-                  </span>
-                </span>
-                <input
-                  type="number"
-                  min={1}
-                  value={thresholdDrafts[maintenanceType.id] ?? maintenanceType.thresholdDays}
-                  onChange={(event) =>
-                    setThresholdDrafts((current) => ({
-                      ...current,
-                      [maintenanceType.id]: Number(event.target.value) > 0 ? Number(event.target.value) : 1
-                    }))
-                  }
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 sm:w-36"
-                  required
-                />
-              </label>
-
-              <button
-                type="submit"
-                disabled={Boolean(thresholdSubmittingByType[maintenanceType.id])}
-                className="min-h-11 w-full rounded-lg border border-slate-300 px-4 py-2 text-slate-700 disabled:opacity-60 sm:w-auto"
-              >
-                {thresholdSubmittingByType[maintenanceType.id] ? "Submitting..." : "Submit threshold"}
-              </button>
-
-              {thresholdStatusByType[maintenanceType.id] ? (
-                <p className="w-full text-sm text-slate-600">{thresholdStatusByType[maintenanceType.id]}</p>
-              ) : null}
-            </form>
-          ))}
+            ) : (
+              maintenanceTypes.map((maintenanceType) => (
+                <article
+                  key={maintenanceType.id}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{maintenanceType.name}</p>
+                      <p className="mt-1 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+                        Threshold: {maintenanceType.thresholdDays} days
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => startEditingType(maintenanceType.id)}
+                      className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
         </div>
+
       </div>
 
       <div className="card p-5 sm:p-6">
