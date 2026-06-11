@@ -62,15 +62,17 @@ export default async function ReservationsPage() {
           </Link>
         </section>
       ) : null}
-      <MonthlyReservationsCalendar
-        reservations={normalizedReservations}
-        maintenanceRecords={maintenanceRecords}
-        maintenanceNotifications={maintenanceNotifications}
-        holidayMap={holidayMap}
-        users={users}
-        actingUser={actingUser}
-        approvalsEnabled={approvalsEnabled}
-      />
+      <div className="max-w-full overflow-x-hidden">
+        <MonthlyReservationsCalendar
+          reservations={normalizedReservations}
+          maintenanceRecords={maintenanceRecords}
+          maintenanceNotifications={maintenanceNotifications}
+          holidayMap={holidayMap}
+          users={users}
+          actingUser={actingUser}
+          approvalsEnabled={approvalsEnabled}
+        />
+      </div>
     </AppShell>
   );
 }

@@ -535,7 +535,7 @@ export function MonthlyReservationsCalendar({
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid max-w-full gap-6 overflow-x-hidden">
       <aside className="card card-strong p-5 sm:p-6">
         <h3 className="text-lg sm:text-xl">Reservation Settings</h3>
         <p className="mt-2 text-sm text-slate-600">
@@ -757,7 +757,7 @@ export function MonthlyReservationsCalendar({
       </aside>
 
       <section
-        className={["card p-5 sm:p-6 touch-pan-y", hasActiveSelection ? "pb-24 sm:pb-6" : "pb-5 sm:pb-6"].join(" ")}
+        className={["card max-w-full overflow-x-hidden p-5 sm:p-6 touch-pan-y", hasActiveSelection ? "pb-24 sm:pb-6" : "pb-5 sm:pb-6"].join(" ")}
         onTouchStart={handleMonthSwipeStart}
         onTouchMove={handleMonthSwipeMove}
         onTouchEnd={handleMonthSwipeEnd}
@@ -844,19 +844,19 @@ export function MonthlyReservationsCalendar({
           </button>
         </div>
 
-        <div className="mt-5 overflow-x-auto pb-1">
+        <div className="mt-5 overflow-x-hidden pb-1 sm:overflow-x-auto">
           <div className={[
-            "min-w-[34rem]",
+            "min-w-0 sm:min-w-[34rem]",
             monthTransitionDirection === "left" ? "calendar-month-slide-left" : "",
             monthTransitionDirection === "right" ? "calendar-month-slide-right" : ""
           ].join(" ")}>
-            <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-500 sm:text-xs">
+            <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] font-semibold text-slate-500 sm:gap-1 sm:text-xs">
               {weekdayHeaders.map((day) => (
                 <div key={day}>{day}</div>
               ))}
             </div>
 
-            <div className="mt-2 grid grid-cols-7 gap-1">
+            <div className="mt-2 grid grid-cols-7 gap-0.5 sm:gap-1">
               {calendarDays.map((day) => {
             const dayKey = format(day, "yyyy-MM-dd");
             const reservationsOnDay = reservations.filter((reservation) => dayKey >= reservation.startDate && dayKey <= reservation.endDate);
@@ -920,7 +920,7 @@ export function MonthlyReservationsCalendar({
                       handleCalendarClick(dayKey);
                     }}
                     className={[
-                      "min-h-20 rounded-lg border p-1.5 text-left text-[11px] transition sm:min-h-28 sm:p-2 sm:text-xs",
+                      "min-h-16 rounded-md border p-1 text-left text-[10px] transition sm:min-h-28 sm:rounded-lg sm:p-2 sm:text-xs",
                       isSameMonth(day, monthCursor) ? "" : "opacity-65",
                       isBookedCell ? bookedCellCls : "border-slate-200 bg-white",
                       isSelected ? "ring-2 ring-amber-500 ring-offset-1" : ""
