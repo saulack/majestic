@@ -2,6 +2,7 @@
 
 import { format, parseISO } from "date-fns";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { Reservation } from "@/lib/types";
 
 type Props = {
@@ -25,22 +26,28 @@ export function UpcomingReservationsList({ reservations, initialVisibleCount }: 
   }
 
   return (
-    <div className="mt-5 grid gap-3">
+    <div className="mt-5 grid gap-2.5 sm:gap-3">
       {visibleReservations.map((reservation) => (
-        <article key={reservation.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3.5 sm:px-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h4 className="text-base font-semibold text-slate-900">{reservation.userName}</h4>
-              <p className="mt-1 text-sm text-slate-600">
-                {format(parseISO(reservation.startDate), "MMM d, yyyy")} to {format(parseISO(reservation.endDate), "MMM d, yyyy")}
-              </p>
+        <Link
+          key={reservation.id}
+          href={`/reservations?start=${reservation.startDate}&end=${reservation.endDate}`}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-3 sm:px-5 sm:py-3.5 transition hover:border-slate-300 hover:shadow-md"
+        >
+          <article>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h4 className="text-base font-semibold text-slate-900">{reservation.userName}</h4>
+                <p className="mt-1 text-sm text-slate-600">
+                  {format(parseISO(reservation.startDate), "MMM d, yyyy")} to {format(parseISO(reservation.endDate), "MMM d, yyyy")}
+                </p>
+              </div>
+              <span className="inline-flex min-h-7 items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
+                {reservation.status}
+              </span>
             </div>
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
-              {reservation.status}
-            </span>
-          </div>
-          {reservation.notes ? <p className="mt-2 text-sm text-slate-500">{reservation.notes}</p> : null}
-        </article>
+            {reservation.notes ? <p className="mt-2 text-sm text-slate-500">{reservation.notes}</p> : null}
+          </article>
+        </Link>
       ))}
 
       {hasMore ? (
@@ -48,7 +55,7 @@ export function UpcomingReservationsList({ reservations, initialVisibleCount }: 
           <button
             type="button"
             onClick={() => setVisibleCount((current) => current + safeInitialCount)}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:w-auto"
           >
             Load more reservations
           </button>

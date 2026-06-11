@@ -16,6 +16,7 @@ export function FeatureQueueClient({ requests }: { requests: FeatureRequest[] })
   const [status, setStatus] = useState("");
   const [sortBy, setSortBy] = useState<"score" | "date">("score");
   const [pastVisibleCount, setPastVisibleCount] = useState(12);
+  const [isPastRequestsOpen, setIsPastRequestsOpen] = useState(false);
 
   const inProgressRequests = useMemo(() => requests.filter((request) => request.status === "in_progress"), [requests]);
   const featureRequests = useMemo(() => sortRequests(inProgressRequests.filter((request) => request.requestType === "feature"), sortBy), [inProgressRequests, sortBy]);
@@ -139,18 +140,18 @@ export function FeatureQueueClient({ requests }: { requests: FeatureRequest[] })
           <h2 className="text-xl sm:text-2xl">Request Queue</h2>
           <p className="mt-2 text-sm text-slate-600">Items currently in progress. Mark each one complete or rejected.</p>
         </div>
-        <div className="inline-flex rounded-lg border border-slate-300 bg-white p-1">
+        <div className="grid w-full grid-cols-2 rounded-lg border border-slate-300 bg-white p-1 sm:inline-flex sm:w-auto">
           <button
             type="button"
             onClick={() => setSortBy("score")}
-            className={["rounded-md px-3 py-1.5 text-sm", sortBy === "score" ? "bg-amber-700 text-white" : "text-slate-700"].join(" ")}
+            className={["min-h-11 rounded-md px-3 py-1.5 text-sm", sortBy === "score" ? "bg-amber-700 text-white" : "text-slate-700"].join(" ")}
           >
             Score
           </button>
           <button
             type="button"
             onClick={() => setSortBy("date")}
-            className={["rounded-md px-3 py-1.5 text-sm", sortBy === "date" ? "bg-amber-700 text-white" : "text-slate-700"].join(" ")}
+            className={["min-h-11 rounded-md px-3 py-1.5 text-sm", sortBy === "date" ? "bg-amber-700 text-white" : "text-slate-700"].join(" ")}
           >
             Date
           </button>
@@ -165,40 +166,60 @@ export function FeatureQueueClient({ requests }: { requests: FeatureRequest[] })
       </div>
 
       <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
-        <h3 className="text-base font-semibold text-slate-900">Past Requests</h3>
-        <p className="mt-1 text-sm text-slate-600">History of completed, declined, and rejected requests.</p>
-
-        <div className="mt-3 grid gap-3">
-          {visiblePastRequests.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-5 text-sm text-slate-500">No past requests yet.</div>
-          ) : (
-            visiblePastRequests.map((request) => (
-              <article key={request.id} className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{request.title}</p>
-                    <p className="mt-1 text-sm text-slate-600">Opened by {request.requestedByName}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {request.requestType === "bug" ? "Bug report" : "Feature request"} · {request.voteCount ?? 0} boost
-                      {(request.voteCount ?? 0) === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                  <span className={statusBadgeClass(request.status)}>{formatStatusLabel(request.status)}</span>
-                </div>
-              </article>
-            ))
-          )}
-        </div>
-
-        {canLoadMorePast ? (
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={() => setPastVisibleCount((current) => current + 12)}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+        <button
+          type="button"
+          onClick={() => setIsPastRequestsOpen(!isPastRequestsOpen)}
+          className="flex w-full items-center justify-between gap-3 rounded-lg p-1 transition hover:bg-slate-100"
+        >
+          <div className="text-left">
+            <h3 className="text-base font-semibold text-slate-900">Past Requests</h3>
+            <p className="mt-1 text-sm text-slate-600">History of completed, declined, and rejected requests.</p>
+          </div>
+          <div className="flex-shrink-0">
+            <svg
+              className={`h-5 w-5 transition-transform text-slate-600 ${isPastRequestsOpen ? "rotate-180" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              Load more history
-            </button>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+          </div>
+        </button>
+
+        {isPastRequestsOpen ? (
+          <div className="mt-3 grid gap-3">
+            {visiblePastRequests.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-5 text-sm text-slate-500">No past requests yet.</div>
+            ) : (
+              visiblePastRequests.map((request) => (
+                <article key={request.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{request.title}</p>
+                      <p className="mt-1 text-sm text-slate-600">Opened by {request.requestedByName}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {request.requestType === "bug" ? "Bug report" : "Feature request"} · {request.voteCount ?? 0} boost
+                        {(request.voteCount ?? 0) === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                    <span className={statusBadgeClass(request.status)}>{formatStatusLabel(request.status)}</span>
+                  </div>
+                </article>
+              ))
+            )}
+
+            {canLoadMorePast ? (
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => setPastVisibleCount((current) => current + 12)}
+                  className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 sm:w-auto"
+                >
+                  Load more history
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -244,7 +265,7 @@ export function FeatureQueueClient({ requests }: { requests: FeatureRequest[] })
         <p className="mt-1 text-sm text-slate-600">How many bugs and feature requests each person has opened.</p>
 
         <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white">
-          <table className="min-w-full text-left text-sm">
+          <table className="min-w-[36rem] text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.08em] text-slate-500">
               <tr>
                 <th className="px-3 py-2.5">Person</th>
@@ -298,7 +319,7 @@ function QueueSection({
                   </p>
                   <p className="mt-1 text-xs font-medium text-amber-700">{request.voteCount ?? 0} boost{(request.voteCount ?? 0) === 1 ? "" : "s"}</p>
                 </div>
-                <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">In progress</span>
+                <span className="inline-flex min-h-7 items-center rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">In progress</span>
               </div>
               <p className="mt-3 text-sm text-slate-700">{request.description}</p>
 
@@ -309,7 +330,7 @@ function QueueSection({
                   onClick={() => {
                     void updateRequest(request.id, "complete");
                   }}
-                  className="rounded-lg bg-emerald-700 px-3 py-2 text-white disabled:opacity-60"
+                  className="min-h-11 flex-1 rounded-lg bg-emerald-700 px-3 py-2 text-white disabled:opacity-60 sm:flex-none"
                 >
                   Mark complete
                 </button>
@@ -319,7 +340,7 @@ function QueueSection({
                   onClick={() => {
                     void updateRequest(request.id, "reject");
                   }}
-                  className="rounded-lg border border-rose-300 px-3 py-2 text-rose-700 disabled:opacity-60"
+                  className="min-h-11 flex-1 rounded-lg border border-rose-300 px-3 py-2 text-rose-700 disabled:opacity-60 sm:flex-none"
                 >
                   Mark rejected
                 </button>
@@ -364,16 +385,16 @@ function formatStatusLabel(status: FeatureRequest["status"]) {
 
 function statusBadgeClass(status: FeatureRequest["status"]) {
   if (status === "completed") {
-    return "rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700";
+    return "inline-flex min-h-7 items-center rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700";
   }
 
   if (status === "declined" || status === "rejected") {
-    return "rounded-full border border-rose-300 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700";
+    return "inline-flex min-h-7 items-center rounded-full border border-rose-300 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700";
   }
 
   if (status === "in_progress") {
-    return "rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700";
+    return "inline-flex min-h-7 items-center rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700";
   }
 
-  return "rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700";
+  return "inline-flex min-h-7 items-center rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700";
 }

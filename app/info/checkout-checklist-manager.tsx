@@ -84,7 +84,7 @@ export function CheckoutChecklistManager({ initialItems = defaultItems }: { init
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           placeholder="Add checklist item"
-          className="min-w-56 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          className="min-w-0 w-full flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm sm:w-auto"
         />
         <button type="button" disabled={saving} onClick={() => void addItem()} className="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
           <Plus className="h-4 w-4" />

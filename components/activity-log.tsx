@@ -100,6 +100,14 @@ function formatDateRange(startDate: string, endDate: string, nights: number) {
   return `${s} - ${e} · ${nights} ${nights === 1 ? "night" : "nights"}`;
 }
 
+function formatSingleDate(dateString: string) {
+  try {
+    return format(parseISO(dateString), "MMM d, yyyy");
+  } catch {
+    return dateString;
+  }
+}
+
 function formatRelative(timestamp: string) {
   try {
     return formatDistanceToNow(parseISO(timestamp), { addSuffix: true });
@@ -153,16 +161,16 @@ export function ActivityLog({
           <button
             type="button"
             onClick={() => setMonthCursor((current) => subMonths(current, 1))}
-            className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
             aria-label="Previous month"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <p className="min-w-28 text-center text-sm font-medium text-slate-700">{format(monthCursor, "MMMM yyyy")}</p>
+          <p className="min-w-[7.5rem] text-center text-sm font-medium text-slate-700 sm:min-w-28">{format(monthCursor, "MMMM yyyy")}</p>
           <button
             type="button"
             onClick={() => setMonthCursor((current) => addMonths(current, 1))}
-            className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
             aria-label="Next month"
           >
             <ChevronRight className="h-4 w-4" />
@@ -187,9 +195,9 @@ export function ActivityLog({
                   <div className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <p className="text-sm font-medium text-slate-800">
-                        {entry.userName} has scheduled {entry.maintenanceTypeName?.toLowerCase()} for {entry.scheduledFor}
+                        {entry.userName} has scheduled {entry.maintenanceTypeName?.toLowerCase()} for {entry.scheduledFor ? formatSingleDate(entry.scheduledFor) : "unknown date"}
                       </p>
-                      <time className="whitespace-nowrap text-[11px] text-slate-400 sm:text-xs">{formatRelative(entry.timestamp)}</time>
+                      <time className="text-[11px] text-slate-400 sm:text-xs">{formatRelative(entry.timestamp)}</time>
                     </div>
                   </div>
                 </li>
@@ -208,7 +216,7 @@ export function ActivityLog({
                       <p className="text-sm font-medium text-slate-800">
                         {entry.userName} was notified to book {entry.maintenanceTypeName?.toLowerCase()} for the stay on {formatDateRange(entry.startDate, entry.endDate, 0).replace(" · 0 nights", "")}
                       </p>
-                      <time className="whitespace-nowrap text-[11px] text-slate-400 sm:text-xs">{formatRelative(entry.timestamp)}</time>
+                      <time className="text-[11px] text-slate-400 sm:text-xs">{formatRelative(entry.timestamp)}</time>
                     </div>
                   </div>
                 </li>
@@ -240,7 +248,7 @@ export function ActivityLog({
                           </span>
                         ) : null}
                       </div>
-                      <time className="whitespace-nowrap text-[11px] text-slate-400 sm:text-xs">{formatRelative(entry.timestamp)}</time>
+                      <time className="text-[11px] text-slate-400 sm:text-xs">{formatRelative(entry.timestamp)}</time>
                     </div>
 
                     <p className="mt-1 text-xs text-slate-500">{formatDateRange(entry.startDate, entry.endDate, entry.nights)}</p>
@@ -269,7 +277,7 @@ export function ActivityLog({
                           ? `${entry.userName} canceled this booking`
                           : `${entry.reviewerName ?? "An admin"} canceled ${entry.userName}'s booking`}
                     </p>
-                    <time className="whitespace-nowrap text-[11px] text-slate-400 sm:text-xs">{formatRelative(entry.timestamp)}</time>
+                    <time className="text-[11px] text-slate-400 sm:text-xs">{formatRelative(entry.timestamp)}</time>
                   </div>
 
                   <p className="mt-1 text-xs text-slate-500">{formatDateRange(entry.startDate, entry.endDate, entry.nights)}</p>

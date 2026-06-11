@@ -48,6 +48,11 @@ body {
   padding: 0;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   font-family: var(--font-body), "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif;
   background:
@@ -207,4 +212,12 @@ textarea::placeholder {
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }

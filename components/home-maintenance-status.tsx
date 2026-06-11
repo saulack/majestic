@@ -60,7 +60,7 @@ export function HomeMaintenanceStatus({ summaries }: Props) {
 
   return (
     <>
-      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-5 grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
         {summaries.map((summary) => {
           const isOverdue =
             summary.snapshotState === "counting" && summary.daysSinceLastMaintenance !== null && summary.daysSinceLastMaintenance >= summary.thresholdDays;
@@ -79,7 +79,7 @@ export function HomeMaintenanceStatus({ summaries }: Props) {
               <button
                 type="button"
                 onClick={() => openModal(summary)}
-                className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left"
+                className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-2.5 text-left"
               >
                 <div>
                   <p className="text-sm font-medium text-slate-900">{summary.typeName}</p>
@@ -91,7 +91,7 @@ export function HomeMaintenanceStatus({ summaries }: Props) {
                       Overdue
                     </span>
                   ) : null}
-                  <span className="text-xs text-slate-500">Details</span>
+                  <span className="text-xs font-medium text-slate-500">Details</span>
                 </div>
               </button>
             </article>
@@ -109,7 +109,7 @@ export function HomeMaintenanceStatus({ summaries }: Props) {
         >
           <div
             className={[
-              "w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl transition-all duration-200 sm:p-6",
+              "w-full max-h-[88vh] overflow-y-auto max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl transition-all duration-200 sm:p-6",
               modalEntered ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-95 opacity-0"
             ].join(" ")}
             onClick={(event) => event.stopPropagation()}
@@ -122,7 +122,7 @@ export function HomeMaintenanceStatus({ summaries }: Props) {
               <button
                 type="button"
                 onClick={closeModal}
-                className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700"
+                className="min-h-10 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700"
               >
                 Close
               </button>

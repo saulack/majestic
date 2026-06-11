@@ -312,34 +312,44 @@ export async function getMaintenanceTypes(): Promise<MaintenanceType[]> {
     return [];
   }
 
+  const { data: currentTypes, error: currentTypesError } = await admin
+    .from("maintenance_types")
+    .select("id,name,threshold_days,created_by,created_at")
+    .order("name", { ascending: true });
+
+  if (currentTypesError || !currentTypes) {
+    return [];
+  }
+
   const { data: maintenanceContacts, error: contactsError } = await admin
     .from("info_contacts")
     .select("role_function,maintenance_category")
     .eq("is_maintenance", true);
 
-  if (contactsError || !maintenanceContacts) {
-    return [];
-  }
+  if (!contactsError && maintenanceContacts) {
+    const existingTypeNames = new Set(currentTypes.map((entry) => entry.name.trim().toLowerCase()));
+    const categoryDisplayNames = new Map<string, string>();
 
-  const activeCategoryNames = new Set(
-    maintenanceContacts
-      .map((entry) => (entry.maintenance_category || entry.role_function || "").trim().toLowerCase())
-      .filter((entry) => entry.length > 0)
-  );
+    for (const entry of maintenanceContacts) {
+      const name = (entry.maintenance_category || entry.role_function || "").trim();
+      const normalized = name.toLowerCase();
+      if (!name || categoryDisplayNames.has(normalized)) {
+        continue;
+      }
 
-  const categoryDisplayNames = new Map<string, string>();
-  for (const entry of maintenanceContacts) {
-    const name = (entry.maintenance_category || entry.role_function || "").trim();
-    const normalized = name.toLowerCase();
-    if (!name || categoryDisplayNames.has(normalized)) {
-      continue;
+      categoryDisplayNames.set(normalized, name);
     }
 
-    categoryDisplayNames.set(normalized, name);
-  }
+    const missingCategories = [...categoryDisplayNames.keys()].filter((name) => !existingTypeNames.has(name));
 
-  if (activeCategoryNames.size === 0) {
-    return [];
+    if (missingCategories.length > 0) {
+      await admin.from("maintenance_types").insert(
+        missingCategories.map((name) => ({
+          name: categoryDisplayNames.get(name) ?? name,
+          threshold_days: 30
+        }))
+      );
+    }
   }
 
   const { data, error } = await admin
@@ -351,38 +361,7 @@ export async function getMaintenanceTypes(): Promise<MaintenanceType[]> {
     return [];
   }
 
-  const existingTypeNames = new Set(data.map((entry) => entry.name.trim().toLowerCase()));
-  const missingCategories = [...activeCategoryNames].filter((name) => !existingTypeNames.has(name));
-
-  if (missingCategories.length > 0) {
-    await admin.from("maintenance_types").insert(
-      missingCategories.map((name) => ({
-        name: categoryDisplayNames.get(name) ?? name,
-        threshold_days: 30
-      }))
-    );
-
-    const { data: refreshedData, error: refreshedError } = await admin
-      .from("maintenance_types")
-      .select("id,name,threshold_days,created_by,created_at")
-      .order("name", { ascending: true });
-
-    if (!refreshedError && refreshedData) {
-      return refreshedData
-        .filter((entry) => activeCategoryNames.has(entry.name.trim().toLowerCase()))
-        .map((entry) => ({
-          id: entry.id,
-          name: entry.name,
-          thresholdDays: entry.threshold_days,
-          createdByUserId: (entry.created_by as string | null) ?? undefined,
-          createdAt: entry.created_at
-        }));
-    }
-  }
-
-  return data
-    .filter((entry) => activeCategoryNames.has(entry.name.trim().toLowerCase()))
-    .map((entry) => ({
+  return data.map((entry) => ({
       id: entry.id,
       name: entry.name,
       thresholdDays: entry.threshold_days,

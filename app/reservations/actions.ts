@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatMaintenanceAlert, getDueMaintenanceTypes, type MaintenanceContactInfo } from "@/lib/maintenance";
+import { getMaintenanceRecords, getMaintenanceTypes } from "@/lib/live-data";
 import { sendReservationConfirmationEmail } from "@/lib/notifications";
 import { hasDateConflict } from "@/lib/reservation-utils";
-import type { MaintenanceType } from "@/lib/types";
 
 export type ActionResult = { error?: string; success?: boolean; maintenanceAlerts?: string[] };
 
@@ -154,48 +154,13 @@ export async function createReservation(params: {
     return { error: insertError.message };
   }
 
-  const [maintenanceTypesResult, maintenanceRecordsResult] = await Promise.all([
-    admin.from("maintenance_types").select("id,name,threshold_days,created_by,created_at").order("name", { ascending: true }),
-    admin
-      .from("maintenance_records")
-      .select(`
-        id,
-        scheduled_for,
-        created_by,
-        created_at,
-        maintenance_type:maintenance_types!maintenance_records_maintenance_type_id_fkey(id,name),
-        creator:profiles!maintenance_records_created_by_fkey(full_name)
-      `)
-      .order("scheduled_for", { ascending: false })
-  ]);
+  const [maintenanceTypes, maintenanceRecords] = await Promise.all([getMaintenanceTypes(), getMaintenanceRecords()]);
 
   const { data: maintenanceContactsResult } = await admin
     .from("info_contacts")
     .select("name,number,email,address,role_function,maintenance_category")
     .eq("is_maintenance", true)
     .order("name", { ascending: true });
-
-  const maintenanceTypes: MaintenanceType[] = !maintenanceTypesResult.error && maintenanceTypesResult.data
-    ? maintenanceTypesResult.data.map((entry) => ({
-        id: entry.id,
-        name: entry.name,
-        thresholdDays: entry.threshold_days,
-        createdByUserId: (entry.created_by as string | null) ?? undefined,
-        createdAt: entry.created_at
-      }))
-    : [];
-
-  const maintenanceRecords = !maintenanceRecordsResult.error && maintenanceRecordsResult.data
-    ? maintenanceRecordsResult.data.map((entry) => ({
-        id: entry.id,
-        typeId: (entry.maintenance_type as unknown as { id: string; name: string } | null)?.id ?? "",
-        typeName: (entry.maintenance_type as unknown as { id: string; name: string } | null)?.name ?? "Unknown",
-        scheduledFor: entry.scheduled_for,
-        createdByUserId: entry.created_by,
-        createdByName: ((entry.creator as unknown as { full_name: string } | null)?.full_name) ?? "Unknown",
-        createdAt: entry.created_at
-      }))
-    : [];
 
   const dueMaintenanceTypes = getDueMaintenanceTypes(maintenanceTypes, maintenanceRecords, endDate);
 

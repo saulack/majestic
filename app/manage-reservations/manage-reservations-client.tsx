@@ -253,7 +253,7 @@ export function ManageReservationsClient({
     const ownerName = userNameById[reservation.userId] ?? reservation.userName;
 
     return (
-      <article key={reservation.id} className="rounded-xl border border-slate-200 bg-white p-4">
+      <article key={reservation.id} className="rounded-xl border border-slate-200 bg-white p-3.5 sm:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-slate-900">
@@ -418,7 +418,7 @@ export function ManageReservationsClient({
                 onClick={() => {
                   void saveReservation(reservation.id);
                 }}
-                className="rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-60"
+                className="min-h-11 flex-1 rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-60 sm:flex-none"
               >
                 Save changes
               </button>
@@ -429,7 +429,7 @@ export function ManageReservationsClient({
                   setEditingId(null);
                   setStatus("");
                 }}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700"
+                className="min-h-11 flex-1 rounded-lg border border-slate-300 px-4 py-2 text-slate-700 sm:flex-none"
               >
                 Cancel
               </button>
@@ -456,7 +456,7 @@ export function ManageReservationsClient({
                       type="button"
                       disabled={busy}
                       onClick={() => startEditing(reservation)}
-                      className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 disabled:opacity-60"
+                      className="min-h-11 flex-1 rounded-lg border border-slate-300 px-4 py-2 text-slate-700 disabled:opacity-60 sm:flex-none"
                     >
                       Edit
                     </button>
@@ -466,7 +466,7 @@ export function ManageReservationsClient({
                       onClick={() => {
                         void cancelReservation(reservation.id);
                       }}
-                      className="rounded-lg border border-rose-300 px-4 py-2 text-rose-700 disabled:opacity-60"
+                      className="min-h-11 flex-1 rounded-lg border border-rose-300 px-4 py-2 text-rose-700 disabled:opacity-60 sm:flex-none"
                     >
                       Cancel
                     </button>
@@ -481,7 +481,7 @@ export function ManageReservationsClient({
                   onClick={() => {
                     void deleteOtherReservation(reservation);
                   }}
-                  className="rounded-lg border border-rose-300 px-4 py-2 text-rose-700 disabled:opacity-60"
+                  className="min-h-11 w-full rounded-lg border border-rose-300 px-4 py-2 text-rose-700 disabled:opacity-60 sm:w-auto"
                 >
                   Delete
                 </button>
@@ -517,12 +517,12 @@ export function ManageReservationsClient({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-lg sm:text-xl">Other Reservations</h3>
-              <p className="mt-1 text-sm text-slate-600">Review all other users' reservations and delete them if necessary.</p>
+              <p className="mt-1 text-sm text-slate-600">Review all other users&apos; reservations and delete them if necessary.</p>
             </div>
             <button
               type="button"
               onClick={() => setIsOtherReservationsOpen((current) => !current)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
+              className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
             >
               {isOtherReservationsOpen ? "Collapse" : `Expand (${sortedOtherReservations.length})`}
             </button>

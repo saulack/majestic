@@ -544,7 +544,7 @@ export function AdminConsole({
                 })();
               }}
             >
-              <div className="min-w-52 flex-1">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-slate-900">{maintenanceType.name}</p>
                 <p className="mt-1 text-xs text-slate-500">Users are reminded when a reservation extends beyond this maintenance interval.</p>
               </div>

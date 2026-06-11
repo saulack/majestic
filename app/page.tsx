@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { compareAsc, format, parseISO } from "date-fns";
+import { compareAsc, parseISO } from "date-fns";
 import { AppShell } from "@/components/app-shell";
 import { HomeMaintenanceStatus } from "@/components/home-maintenance-status";
 import { UpcomingReservationsList } from "@/components/upcoming-reservations-list";
@@ -11,7 +11,7 @@ import { redirect } from "next/navigation";
 import { getEffectiveUser, getRolePreviewFromCookieValue } from "@/lib/role-preview";
 import { isAdminLike } from "@/lib/rbac";
 import { maybeSendInAppInboxDigestEmail } from "@/lib/notifications";
-import type { AppRole, Reservation } from "@/lib/types";
+import type { Reservation } from "@/lib/types";
 
 const DEFAULT_HOME_RESERVATION_COUNT = 5;
 
@@ -49,11 +49,9 @@ export default async function HomePage() {
     .filter((reservation) => compareAsc(parseISO(reservation.startDate), new Date()) >= 0)
     .sort((left, right) => compareAsc(parseISO(left.startDate), parseISO(right.startDate)));
   const myReservations = normalizedReservations.filter((reservation) => reservation.userId === actingUser.id);
-  const upcomingMyReservations = myReservations.filter((reservation) => compareAsc(parseISO(reservation.startDate), new Date()) >= 0);
   const myNextStay = myReservations
     .filter((reservation) => compareAsc(parseISO(reservation.startDate), new Date()) >= 0)
     .sort((left, right) => compareAsc(parseISO(left.startDate), parseISO(right.startDate)))[0];
-  const currentRoleMetricValue: AppRole = profile.role === "superadmin" ? profile.role : actingUser.role;
   const notificationCount = notifications.filter((notification) => !notification.isRead).length;
 
   await maybeSendInAppInboxDigestEmail({
@@ -69,9 +67,9 @@ export default async function HomePage() {
     <AppShell initialRole={actingUser.role} initialPreviewRole={previewRole}>
       <section className="grid gap-5 sm:gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="card overflow-hidden">
-          <div className="border-b border-slate-200 bg-gradient-to-r from-[#5fb8c9] via-[#72c9b2] to-[#f6d28d] p-6 text-white sm:p-8">
+          <div className="border-b border-slate-200 bg-gradient-to-r from-[#5fb8c9] via-[#72c9b2] to-[#f6d28d] p-5 text-white sm:p-8">
             <p className="text-[11px] uppercase tracking-[0.3em] text-[#edfdf9] sm:text-xs sm:tracking-[0.32em]">Family Dashboard</p>
-            <h2 className="mt-2 text-3xl font-semibold leading-tight sm:text-4xl">{actingUser.fullName}</h2>
+            <h2 className="mt-2 text-2xl font-semibold leading-tight sm:text-4xl">{actingUser.fullName}</h2>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-[#effcf8]">
               {adminLike
                 ? "Previewing a higher-level view of the apartment hub with moderation context and shared activity visibility."
@@ -101,7 +99,7 @@ export default async function HomePage() {
             <p className="text-xs uppercase tracking-[0.28em] text-[#2f7b84]">Maintenance status</p>
             <h3 className="mt-2 text-xl sm:text-2xl">Maintenance Snapshot</h3>
           </div>
-          <Link href="/maintenance" className="text-sm font-medium text-amber-700 hover:text-amber-800">
+          <Link href="/maintenance" className="inline-flex min-h-11 items-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100">
             Open maintenance
           </Link>
         </div>
@@ -113,7 +111,7 @@ export default async function HomePage() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-[0.28em] text-amber-700">Upcoming reservations</p>
-            <h3 className="mt-2 text-xl sm:text-2xl">next {upcomingReservationCount} reservations</h3>
+            <h3 className="mt-2 text-xl sm:text-2xl">Next {upcomingReservationCount} reservations</h3>
           </div>
           <p className="text-sm text-slate-500">Showing the next reservations configured by admin.</p>
         </div>
@@ -136,7 +134,7 @@ function Metric({ label, value, href }: { label: string; value: string; href?: s
 
   if (href) {
     return (
-      <Link href={href} className="flex h-full rounded-xl border border-slate-200 bg-slate-50 p-3.5 transition hover:border-amber-700 hover:bg-amber-50/40 sm:p-4">
+      <Link href={href} className="flex min-h-11 h-full rounded-xl border border-slate-200 bg-slate-50 p-3.5 transition hover:border-amber-700 hover:bg-amber-50/40 sm:p-4">
         {content}
       </Link>
     );
@@ -151,7 +149,7 @@ function Metric({ label, value, href }: { label: string; value: string; href?: s
 
 function Action({ href, title, subtitle }: { href: string; title: string; subtitle: string }) {
   return (
-    <Link href={href} className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 transition hover:border-amber-700 hover:bg-amber-50/40 sm:p-4">
+    <Link href={href} className="block min-h-11 rounded-xl border border-slate-200 bg-slate-50 p-3.5 transition hover:border-amber-700 hover:bg-amber-50/40 sm:p-4">
       <p className="text-sm font-semibold text-slate-900 sm:text-base">{title}</p>
       <p className="mt-1 text-sm leading-relaxed text-slate-600">{subtitle}</p>
     </Link>

@@ -2,7 +2,7 @@
 
 import { format, parseISO } from "date-fns";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { FeatureRequest } from "@/lib/types";
 
 type ApiResult = {
@@ -19,7 +19,7 @@ type RequestSort = "score" | "date";
 
 export function FeatureRequestsClient({ requests, actingUserId }: { requests: FeatureRequest[]; actingUserId: string }) {
   const router = useRouter();
-  const [items, setItems] = useState(requests);
+  const [voteOverridesById, setVoteOverridesById] = useState<Record<string, { voteCount: number; votedByCurrentUser: boolean }>>({});
   const [requestType, setRequestType] = useState<"feature" | "bug" | "">("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -32,9 +32,22 @@ export function FeatureRequestsClient({ requests, actingUserId }: { requests: Fe
   const [voteBusyById, setVoteBusyById] = useState<Record<string, boolean>>({});
   const [voteStatus, setVoteStatus] = useState("");
 
-  useEffect(() => {
-    setItems(requests);
-  }, [requests]);
+  const items = useMemo(
+    () =>
+      requests.map((request) => {
+        const override = voteOverridesById[request.id];
+        if (!override) {
+          return request;
+        }
+
+        return {
+          ...request,
+          voteCount: override.voteCount,
+          votedByCurrentUser: override.votedByCurrentUser
+        };
+      }),
+    [requests, voteOverridesById]
+  );
 
   const myRequests = useMemo(() => items.filter((request) => request.requestedByUserId === actingUserId), [actingUserId, items]);
   const featureRequests = myRequests.filter((request) => request.requestType === "feature");
@@ -130,17 +143,17 @@ export function FeatureRequestsClient({ requests, actingUserId }: { requests: Fe
         return;
       }
 
-      setItems((current) =>
-        current.map((request) =>
-          request.id === requestId
-            ? {
-                ...request,
-                voteCount: payload.voteCount ?? (request.voteCount ?? 0) + 1,
-                votedByCurrentUser: true
-              }
-            : request
-        )
-      );
+      setVoteOverridesById((current) => {
+        const fallbackVoteCount = current[requestId]?.voteCount ?? requests.find((request) => request.id === requestId)?.voteCount ?? 0;
+
+        return {
+          ...current,
+          [requestId]: {
+            voteCount: payload.voteCount ?? fallbackVoteCount + 1,
+            votedByCurrentUser: true
+          }
+        };
+      });
       setVoteStatus(payload.message ?? "Support added.");
       router.refresh();
     } catch {

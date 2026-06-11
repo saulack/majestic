@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   addDays,
   addMonths,
@@ -80,9 +81,11 @@ export function MonthlyReservationsCalendar({
   const [calendarSelectionError, setCalendarSelectionError] = useState("");
   const [formMessage, setFormMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const searchParams = useSearchParams();
   const [declineTargetId, setDeclineTargetId] = useState<string | null>(null);
   const [declineReasonText, setDeclineReasonText] = useState("");
   const isDraggingRef = useRef(false);
+  const hasAppliedQueryParamsRef = useRef(false);
   const dragMovedRef = useRef(false);
   const canDeleteAnyReservation = actingUser.role === "superadmin";
   const canBookForOthers = users.length > 1;
@@ -102,6 +105,7 @@ export function MonthlyReservationsCalendar({
   const requestedShareRangeEnd = allowDoubleBooking && shareScope === "range" && sharedRangeStartDate && sharedRangeEndDate
     ? sharedRangeEndDate
     : undefined;
+  const hasActiveSelection = Boolean(activeStart && activeEnd);
   const selectionHasConflict = activeStart && activeEnd
     ? hasDateConflict(
         reservations,
@@ -128,6 +132,19 @@ export function MonthlyReservationsCalendar({
       window.removeEventListener("pointercancel", stopDragging);
     };
   }, []);
+
+  useEffect(() => {
+    const start = searchParams.get("start");
+    const end = searchParams.get("end");
+
+    if (start && end && !hasAppliedQueryParamsRef.current) {
+      hasAppliedQueryParamsRef.current = true;
+      setStartDate(start);
+      setEndDate(end);
+      setMonthCursor(startOfMonth(parseISO(start)));
+      setSelectionStatus("Dates pre-populated from reservation.");
+    }
+  }, [searchParams]);
 
   function applyRange(first: string, second: string, source: "calendar" | "input") {
     const [nextStart, nextEnd] = normalizeRange(first, second);
@@ -636,8 +653,9 @@ export function MonthlyReservationsCalendar({
         ) : null}
       </aside>
 
-      <section className="card p-5 sm:p-6">
+      <section className={["card p-5 sm:p-6", hasActiveSelection ? "pb-24 sm:pb-6" : "pb-5 sm:pb-6"].join(" ")}>
         <h2 className="text-xl sm:text-2xl">Monthly Reservation Calendar</h2>
+        <p className="mt-2 text-sm text-slate-600">Tap once to start, tap again to finish, then reserve from the action bar.</p>
 
         <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
           <label className="grid gap-1.5 font-medium">
@@ -658,7 +676,7 @@ export function MonthlyReservationsCalendar({
                   applyRange(nextStart, endDate, "input");
                 }
               }}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+              className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 py-2"
             />
           </label>
           <label className="grid gap-1.5 font-medium">
@@ -679,19 +697,19 @@ export function MonthlyReservationsCalendar({
                   applyRange(startDate, nextEnd, "input");
                 }
               }}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2"
+              className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 py-2"
             />
           </label>
         </div>
 
-        <p className="mt-4 text-2xl font-bold text-slate-900 sm:text-3xl">{format(monthCursor, "MMMM yyyy")}</p>
+        <p className="mt-4 text-xl font-bold text-slate-900 sm:text-3xl">{format(monthCursor, "MMMM yyyy")}</p>
 
         {calendarSelectionError ? <p className="mt-2 text-sm text-rose-700">{calendarSelectionError}</p> : null}
 
         <div className="mt-3 flex items-center justify-end gap-2">
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
             onClick={() => setMonthCursor(subMonths(monthCursor, 1))}
             aria-label="Previous month"
           >
@@ -699,7 +717,7 @@ export function MonthlyReservationsCalendar({
           </button>
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
             onClick={() => setMonthCursor(addMonths(monthCursor, 1))}
             aria-label="Next month"
           >
@@ -707,14 +725,16 @@ export function MonthlyReservationsCalendar({
           </button>
         </div>
 
-        <div className="mt-5 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-500 sm:text-xs">
-          {weekdayHeaders.map((day) => (
-            <div key={day}>{day}</div>
-          ))}
-        </div>
+        <div className="mt-5 overflow-x-auto pb-1">
+          <div className="min-w-[34rem]">
+            <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-500 sm:text-xs">
+              {weekdayHeaders.map((day) => (
+                <div key={day}>{day}</div>
+              ))}
+            </div>
 
-        <div className="mt-2 grid grid-cols-7 gap-1">
-          {calendarDays.map((day) => {
+            <div className="mt-2 grid grid-cols-7 gap-1">
+              {calendarDays.map((day) => {
             const dayKey = format(day, "yyyy-MM-dd");
             const reservationsOnDay = reservations.filter((reservation) => dayKey >= reservation.startDate && dayKey <= reservation.endDate);
             const activeReservationsOnDay = reservationsOnDay.filter(
@@ -757,75 +777,82 @@ export function MonthlyReservationsCalendar({
                   ? "bg-[#9fd9e2] text-[#184f5a] border-[#7fc1cc] dark:bg-cyan-800/75 dark:text-cyan-100 dark:border-cyan-700"
                   : "bg-[#62bea9] text-white border-[#49a38f] dark:bg-emerald-500 dark:text-slate-950 dark:border-emerald-300";
 
-            return (
-              <button
-                key={dayKey}
-                type="button"
-                onPointerDown={() => handleCalendarPointerDown(dayKey)}
-                onPointerEnter={() => handleCalendarPointerEnter(dayKey)}
-                onClick={() => handleCalendarClick(dayKey)}
-                className={[
-                  "min-h-24 rounded-lg border p-2 text-left text-xs transition sm:min-h-28",
-                  isSameMonth(day, monthCursor) ? "" : "opacity-65",
-                  isBookedCell ? bookedCellCls : "border-slate-200 bg-white",
-                  isSelected ? "ring-2 ring-amber-500 ring-offset-1" : ""
-                ].join(" ")}
-              >
-                <div className={`text-xs font-semibold ${isBookedCell ? "text-inherit" : "text-slate-800"}`}>{format(day, "d")}</div>
+                return (
+                  <button
+                    key={dayKey}
+                    type="button"
+                    onPointerDown={() => handleCalendarPointerDown(dayKey)}
+                    onPointerEnter={() => handleCalendarPointerEnter(dayKey)}
+                    onClick={() => handleCalendarClick(dayKey)}
+                    className={[
+                      "min-h-20 rounded-lg border p-1.5 text-left text-[11px] transition sm:min-h-28 sm:p-2 sm:text-xs",
+                      isSameMonth(day, monthCursor) ? "" : "opacity-65",
+                      isBookedCell ? bookedCellCls : "border-slate-200 bg-white",
+                      isSelected ? "ring-2 ring-amber-500 ring-offset-1" : ""
+                    ].join(" ")}
+                  >
+                    <div className={`text-xs font-semibold ${isBookedCell ? "text-inherit" : "text-slate-800"}`}>{format(day, "d")}</div>
 
-                {primaryReservation ? (
-                  <div className="mt-2">
-                    {hasSharedStay ? (
-                      <div className="space-y-1">
-                        {sharedStayGuests.map((reservation) => (
-                          <p key={reservation.id} className="truncate rounded-md bg-white/55 px-1.5 py-0.5 text-[10px] font-semibold leading-tight text-[#103b44] backdrop-blur-[1px]">
-                            {reservation.userName}
+                    {primaryReservation ? (
+                      <div className="mt-1.5 sm:mt-2">
+                        {hasSharedStay ? (
+                          <div className="space-y-1">
+                            {sharedStayGuests.map((reservation) => (
+                              <p
+                                key={reservation.id}
+                                className="truncate rounded-md bg-white/55 px-1.5 py-0.5 text-[10px] font-semibold leading-tight text-[#103b44] backdrop-blur-[1px]"
+                              >
+                                {reservation.userName}
+                              </p>
+                            ))}
+                            {extraSharedStayCount > 0 ? (
+                              <p className="text-[10px] font-medium text-[#245f68]">+{extraSharedStayCount} more</p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <p className={`truncate text-[10px] font-semibold leading-tight sm:text-[11px] ${isDoubleBookableDay ? "text-slate-900 dark:text-slate-100" : ""}`}>
+                            {primaryReservation.userName}
                           </p>
-                        ))}
-                        {extraSharedStayCount > 0 ? (
-                          <p className="text-[10px] font-medium text-[#245f68]">+{extraSharedStayCount} more</p>
+                        )}
+                        {hasSharedStay ? (
+                          <div className="mt-1 inline-flex items-center rounded-full border border-white/50 bg-white/45 px-1.5 py-0.5 text-[10px] font-medium text-[#245f68]">
+                            Shared stay
+                          </div>
                         ) : null}
                       </div>
+                    ) : holidays.length > 0 ? (
+                      holidays.slice(0, 2).map((holiday) => {
+                        const parsed = parseHolidayLabel(holiday);
+                        return (
+                          <div key={holiday} className={`mt-1 truncate rounded border px-1 text-[10px] ${holidayChipClass(parsed.kind, false)}`}>
+                            {parsed.name}
+                          </div>
+                        );
+                      })
                     ) : (
-                      <p className={`truncate text-[11px] font-semibold leading-tight ${isDoubleBookableDay ? "text-slate-900 dark:text-slate-100" : ""}`}>{primaryReservation.userName}</p>
+                      <div className="mt-1.5 text-[10px] text-slate-400 sm:mt-2">Available</div>
                     )}
-                    {hasSharedStay ? (
-                      <div className="mt-1 inline-flex items-center rounded-full border border-white/50 bg-white/45 px-1.5 py-0.5 text-[10px] font-medium text-[#245f68]">
-                        Shared stay
+
+                    {isBookedCell && holidays.length > 0 ? (
+                      <div className="mt-1 grid gap-1">
+                        {holidays.slice(0, 1).map((holiday) => {
+                          const parsed = parseHolidayLabel(holiday);
+                          return (
+                            <div key={holiday} className={`truncate rounded border px-1 text-[10px] ${holidayChipClass(parsed.kind, true)}`}>
+                              {parsed.name}
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : null}
-                  </div>
-                ) : holidays.length > 0 ? (
-                  holidays.slice(0, 2).map((holiday) => {
-                    const parsed = parseHolidayLabel(holiday);
-                    return (
-                      <div key={holiday} className={`mt-1 truncate rounded border px-1 text-[10px] ${holidayChipClass(parsed.kind, false)}`}>
-                        {parsed.name}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="mt-2 text-[10px] text-slate-400">Available</div>
-                )}
-
-                {isBookedCell && holidays.length > 0 ? (
-                  <div className="mt-1 grid gap-1">
-                    {holidays.slice(0, 1).map((holiday) => {
-                      const parsed = parseHolidayLabel(holiday);
-                      return (
-                        <div key={holiday} className={`truncate rounded border px-1 text-[10px] ${holidayChipClass(parsed.kind, true)}`}>
-                          {parsed.name}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </button>
-            );
-          })}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-4 hidden flex-wrap items-center justify-between gap-3 sm:flex">
           <p className="text-sm text-slate-600">
             {selectionHasConflict && allowDoubleBooking
               ? `Active range: ${activeStart || "-"} to ${activeEnd || "-"} · overlap allowed`
@@ -836,7 +863,7 @@ export function MonthlyReservationsCalendar({
               <button
                 type="button"
                 onClick={clearSelection}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-700"
+                className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-700"
               >
                 Clear selection
               </button>
@@ -845,12 +872,39 @@ export function MonthlyReservationsCalendar({
               type="button"
               disabled={isPending}
               onClick={handleSave}
-              className="rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-50"
+              className="min-h-11 rounded-lg bg-amber-700 px-4 py-2 text-white disabled:opacity-50"
             >
               {isPending ? "Reserving..." : approvalsEnabled ? "Reserve dates (submit for approval)" : "Reserve dates"}
             </button>
           </div>
         </div>
+
+        {hasActiveSelection ? (
+          <div className="fixed inset-x-3 bottom-3 z-40 rounded-xl border border-slate-200 bg-white/95 p-3 shadow-[0_16px_36px_rgba(62,116,121,0.2)] backdrop-blur sm:hidden">
+            <p className="text-xs text-slate-600">
+              {selectionHasConflict && allowDoubleBooking
+                ? `Active range: ${activeStart || "-"} to ${activeEnd || "-"} · overlap allowed`
+                : `Active range: ${activeStart || "-"} to ${activeEnd || "-"}`}
+            </p>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="min-h-11 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={handleSave}
+                className="min-h-11 flex-[1.4] rounded-lg bg-amber-700 px-3 py-2 text-sm text-white disabled:opacity-50"
+              >
+                {isPending ? "Reserving..." : "Reserve"}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
           <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1">

@@ -228,18 +228,24 @@ export function StatsClientPage({
             </p>
           </div>
 
-          <div className="inline-flex rounded-lg border border-slate-300 bg-white p-1">
+          <div className="grid w-full grid-cols-2 rounded-lg border border-slate-300 bg-white p-1 sm:inline-flex sm:w-auto">
             <button
               type="button"
               onClick={() => setScope("currentYear")}
-              className={["rounded-md px-3 py-1.5 text-sm", scope === "currentYear" ? "bg-amber-700 text-white" : "text-slate-700"].join(" ")}
+              className={[
+                "min-h-11 rounded-md px-3 py-1.5 text-sm",
+                scope === "currentYear" ? "bg-amber-700 text-white" : "text-slate-700"
+              ].join(" ")}
             >
               Current year
             </button>
             <button
               type="button"
               onClick={() => setScope("allTime")}
-              className={["rounded-md px-3 py-1.5 text-sm", scope === "allTime" ? "bg-amber-700 text-white" : "text-slate-700"].join(" ")}
+              className={[
+                "min-h-11 rounded-md px-3 py-1.5 text-sm",
+                scope === "allTime" ? "bg-amber-700 text-white" : "text-slate-700"
+              ].join(" ")}
             >
               All time
             </button>
@@ -368,7 +374,7 @@ export function StatsClientPage({
               <p className="text-sm text-slate-500">No user activity found for this period.</p>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-                <table className="min-w-full text-left text-sm">
+                <table className="min-w-[42rem] text-left text-sm">
                   <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-[0.08em] text-slate-500">
                     <tr>
                       <th className="px-3 py-2.5">User</th>
@@ -426,7 +432,7 @@ export function StatsClientPage({
             </h3>
             <div className="grid gap-3">
               {filteredReservations.map((reservation) => (
-                <div key={reservation.id} className="flex items-start justify-between rounded-xl border border-slate-200 bg-white px-3.5 py-3 sm:px-4">
+                <div key={reservation.id} className="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-3 sm:px-4">
                   <div>
                     <p className="text-sm font-medium text-slate-800">
                       {adminLike ? `${reservation.userName}: ` : ""}
@@ -494,8 +500,8 @@ function StatTile({
   }[accent];
 
   return (
-    <div className={`rounded-xl border p-3.5 text-center sm:p-4 ${ring}`}>
-      <p className={`text-2xl font-bold sm:text-3xl ${text}`}>{value}</p>
+    <div className={`rounded-xl border p-3 text-center sm:p-4 ${ring}`}>
+      <p className={`text-xl font-bold sm:text-3xl ${text}`}>{value}</p>
       <p className="mt-1 text-[11px] text-slate-500 sm:text-xs">{label}</p>
     </div>
   );
@@ -503,12 +509,12 @@ function StatTile({
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "approved") {
-    return <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700">Approved</span>;
+    return <span className="inline-flex min-h-7 items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-700">Approved</span>;
   }
 
   if (status === "declined") {
-    return <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700">Canceled</span>;
+    return <span className="inline-flex min-h-7 items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-700">Canceled</span>;
   }
 
-  return <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700">Pending</span>;
+  return <span className="inline-flex min-h-7 items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-700">Pending</span>;
 }
