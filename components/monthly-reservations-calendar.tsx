@@ -763,13 +763,13 @@ export function MonthlyReservationsCalendar({
                 if (nextStart) {
                   setMonthCursor(startOfMonth(parseISO(nextStart)));
                 }
-                setStartDate(nextStart);
-
-                if (!endDate) {
-                  setEndDate(nextStart);
-                } else if (nextStart && endDate) {
+                if (nextStart && endDate) {
                   applyRange(nextStart, endDate, "input");
+                  return;
                 }
+
+                setStartDate(nextStart);
+                setSelectionStatus(nextStart ? "Start date updated." : "Start date cleared.");
               }}
               className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 py-2"
             />
@@ -784,13 +784,13 @@ export function MonthlyReservationsCalendar({
                 if (nextEnd) {
                   setMonthCursor(startOfMonth(parseISO(nextEnd)));
                 }
-                setEndDate(nextEnd);
-
-                if (!startDate) {
-                  setStartDate(nextEnd);
-                } else if (startDate && nextEnd) {
+                if (startDate && nextEnd) {
                   applyRange(startDate, nextEnd, "input");
+                  return;
                 }
+
+                setEndDate(nextEnd);
+                setSelectionStatus(nextEnd ? "End date updated." : "End date cleared.");
               }}
               className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 py-2"
             />
@@ -805,7 +805,10 @@ export function MonthlyReservationsCalendar({
           <button
             type="button"
             className="min-h-11 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
-            onClick={() => setMonthCursor(startOfMonth(new Date()))}
+            onClick={() => {
+              setMonthCursor(startOfMonth(new Date()));
+              setSelectionStatus("Showing current month.");
+            }}
           >
             Today
           </button>
