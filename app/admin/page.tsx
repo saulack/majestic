@@ -53,6 +53,12 @@ export default async function AdminPage() {
   let users: UserProfile[] = [];
 
   if (admin) {
+    const authUsersById = new Map<string, string | null>();
+    const { data: authUsersData } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    for (const authUser of authUsersData?.users ?? []) {
+      authUsersById.set(authUser.id, authUser.banned_until ?? null);
+    }
+
     const { data, error } = await admin
       .from("profiles")
       .select("id,full_name,email,role,force_password_reset")
@@ -64,7 +70,16 @@ export default async function AdminPage() {
         fullName: entry.full_name,
         email: entry.email,
         role: entry.role,
-        forcePasswordReset: entry.force_password_reset
+        forcePasswordReset: entry.force_password_reset,
+        isHidden: (() => {
+          const bannedUntil = authUsersById.get(entry.id);
+          if (!bannedUntil) {
+            return false;
+          }
+
+          const parsed = Date.parse(bannedUntil);
+          return Number.isFinite(parsed) && parsed > Date.now();
+        })()
       }));
     }
   }

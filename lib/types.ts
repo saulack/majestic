@@ -14,6 +14,7 @@ export type UserProfile = {
   email: string;
   role: AppRole;
   forcePasswordReset?: boolean;
+  isHidden?: boolean;
 };
 
 export type Reservation = {

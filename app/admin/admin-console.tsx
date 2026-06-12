@@ -54,6 +54,26 @@ export function AdminConsole({
   const [manualInviteStatus, setManualInviteStatus] = useState("");
   const [manualInviteLink, setManualInviteLink] = useState("");
   const [homepageCountStatus, setHomepageCountStatus] = useState("");
+  const [deleteTargetUser, setDeleteTargetUser] = useState<UserProfile | null>(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+
+  async function deleteUserWithConfirmation() {
+    if (!deleteTargetUser) {
+      return;
+    }
+
+    const response = await postJson("/api/admin/delete-user", {
+      userId: deleteTargetUser.id,
+      fullName: deleteConfirmName.trim()
+    });
+
+    if (!response.error) {
+      setUsers((current) => current.filter((entry) => entry.id !== deleteTargetUser.id));
+      setDeleteTargetUser(null);
+      setDeleteConfirmName("");
+      router.refresh();
+    }
+  }
 
   async function postJson(path: string, body: Record<string, string | boolean | number>): Promise<ApiResult> {
     setLoading(true);
@@ -634,36 +654,6 @@ export function AdminConsole({
       </div>
 
       <div className="card p-5 sm:p-6">
-        <h2 className="text-xl sm:text-2xl">Delete Account</h2>
-        <p className="mt-2 text-sm text-slate-600">Deletes auth account and linked profile data.</p>
-
-        <form
-          className="mt-4 grid gap-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const form = new FormData(event.currentTarget);
-            const userId = String(form.get("userId") ?? "").trim();
-            const confirmed = window.confirm(`Delete user ${userId}? This permanently removes their account and related profile data.`);
-            if (!confirmed) {
-              return;
-            }
-
-            void postJson("/api/admin/delete-user", {
-              userId
-            });
-          }}
-        >
-          <label className="grid gap-1.5 text-sm font-medium">
-            <span className="text-xs uppercase tracking-[0.12em] text-slate-500">User ID</span>
-            <input name="userId" placeholder="User ID" className="rounded-lg border border-slate-300 px-3 py-2" required />
-          </label>
-          <button disabled={loading} type="submit" className="rounded-lg bg-amber-700 px-4 py-2 text-white">
-            Delete user
-          </button>
-        </form>
-      </div>
-
-      <div className="card p-5 sm:p-6">
         <h2 className="text-xl sm:text-2xl">Force Password Reset</h2>
         <p className="mt-2 text-sm text-slate-600">
           Make the next login force a password reset immediately, without email and without checking the previous password.
@@ -703,6 +693,7 @@ export function AdminConsole({
                 <div>
                   <span className="font-semibold">{user.fullName}</span> - {user.email} - {user.role}
                   <p className="mt-1 text-xs text-slate-500">User ID: {user.id}</p>
+                  {user.isHidden ? <p className="mt-1 text-xs text-amber-700">User is hidden and cannot sign in.</p> : null}
                   {user.forcePasswordReset ? <p className="mt-1 text-xs text-rose-700">Password reset required on next login.</p> : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -733,6 +724,31 @@ export function AdminConsole({
                     <span className="rounded-full border border-[#bde3df] bg-[#f1fbf9] px-2.5 py-1 text-xs font-medium text-[#2f7b84]">Superadmin</span>
                   ) : null}
 
+                  {user.role !== "superadmin" && user.id !== currentUserId ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                      <span className="text-xs font-medium text-slate-600">Hide user</span>
+                      <ToggleSwitch
+                        checked={Boolean(user.isHidden)}
+                        disabled={loading}
+                        onCheckedChange={(checked) => {
+                          void (async () => {
+                            const response = await postJson("/api/admin/user-visibility", {
+                              userId: user.id,
+                              hidden: checked
+                            });
+
+                            if (!response?.error) {
+                              setUsers((current) => current.map((entry) => (entry.id === user.id ? { ...entry, isHidden: checked } : entry)));
+                            }
+                          })();
+                        }}
+                        srLabel={`Toggle visibility for ${user.fullName}`}
+                        offLabel="Visible"
+                        onLabel="Hidden"
+                      />
+                    </div>
+                  ) : null}
+
                   {user.id !== currentUserId ? (
                     <button
                       type="button"
@@ -750,12 +766,71 @@ export function AdminConsole({
                       Force password reset
                     </button>
                   ) : null}
+
+                  {user.role !== "superadmin" && user.id !== currentUserId ? (
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => {
+                        setDeleteTargetUser(user);
+                        setDeleteConfirmName("");
+                      }}
+                      className="rounded-lg border border-rose-300 px-3 py-2 text-xs text-rose-700 disabled:opacity-60"
+                    >
+                      Delete user
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </li>
           ))}
         </ul>
       </div>
+
+      {deleteTargetUser ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6">
+            <h3 className="text-lg font-semibold text-slate-900">Delete user</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              This permanently deletes {deleteTargetUser.fullName}&apos;s account and reservations. To confirm, type the full name exactly.
+            </p>
+
+            <label className="mt-4 grid gap-1.5 text-sm font-medium">
+              <span className="text-xs uppercase tracking-[0.12em] text-slate-500">Full name confirmation</span>
+              <input
+                value={deleteConfirmName}
+                onChange={(event) => setDeleteConfirmName(event.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2"
+                placeholder={deleteTargetUser.fullName}
+                autoFocus
+              />
+            </label>
+
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700"
+                onClick={() => {
+                  setDeleteTargetUser(null);
+                  setDeleteConfirmName("");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={loading || deleteConfirmName.trim() !== deleteTargetUser.fullName}
+                onClick={() => {
+                  void deleteUserWithConfirmation();
+                }}
+                className="rounded-lg bg-rose-700 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Confirm delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {result?.message || result?.error ? (
         <div className="lg:col-span-2 rounded-lg border border-slate-300 bg-white p-4 text-sm">
